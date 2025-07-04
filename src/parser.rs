@@ -1,3 +1,5 @@
+use std::os::macos::raw;
+
 use super::helpers::*;
 use super::lexer::{Token, TokenKind};
 use super::parsing_symbols::*;
@@ -24,6 +26,7 @@ pub struct FunctionCall<'a> {
 }
 
 pub struct UnaryOperation<'a> {
+    pub is_pre: bool,
     pub operator: Token<'a>,
     pub exp: Box<Expression<'a>>,
 }
@@ -134,23 +137,181 @@ fn parse_expression_statement<'a>(
     None
 }
 
+// Handles expressions into parenthesis
+fn try_parethesized<'a>(
+    raw: &[char],
+    tokens: &[Token<'a>],
+    index: usize,
+) -> Option<(Expression<'a>, usize)> {
+    // No need to check for index < tokens.len(), it is being checked in the caller.
+    if expect_syntax(tokens, index, &SYNTAX_OP.to_string()) {
+        let exp_begin_idx = index + 1;
+        let (exp, i) = parse_expression(raw, tokens, exp_begin_idx, 0)?;
+        if expect_syntax(tokens, i, &SYNTAX_CP.to_string()) {
+            return Some((exp, i + 1));
+        }
+    }
+    None
+}
+
+fn try_pre_unary_operator<'a>(
+    raw: &[char],
+    tokens: &[Token<'a>],
+    index: usize,
+) -> Option<(Expression<'a>, usize)> {
+    if expect_operator(tokens, index, OP_INC) || expect_operator(tokens, index, OP_DEC) {
+        let (exp, idx) = parse_primary(raw, tokens, index + 1)?;
+        return Some((
+            Expression::UnaryOperation(UnaryOperation {
+                is_pre: true,
+                operator: tokens[index].clone(),
+                exp: Box::new(exp),
+            }),
+            idx,
+        ));
+    }
+    None
+}
+
+fn try_post_unary_operator<'a>(
+    raw: &[char],
+    tokens: &[Token<'a>],
+    index: usize,
+) -> Option<(Expression<'a>, usize)> {
+    if let Some((exp, i)) = try_parethesized(raw, tokens, index) {
+        if expect_operator(tokens, i, OP_INC) || expect_operator(tokens, i, OP_DEC) {
+            return Some((
+                Expression::UnaryOperation(UnaryOperation {
+                    is_pre: false,
+                    operator: tokens[i].clone(),
+                    exp: Box::new(exp),
+                }),
+                i + 1,
+            ));
+        }
+    }
+    if tokens[index].kind() == TokenKind::Number || tokens[index].kind() == TokenKind::Identifier {
+        let possible_unary_op = index + 1;
+        if expect_operator(tokens, possible_unary_op, OP_INC)
+            || expect_operator(tokens, possible_unary_op, OP_DEC)
+        {
+            let primary_after = possible_unary_op + 1;
+            match tokens[index].kind() {
+                TokenKind::Identifier => {
+                    return Some((
+                        Expression::UnaryOperation(UnaryOperation {
+                            is_pre: false,
+                            operator: tokens[possible_unary_op].clone(),
+                            exp: Box::new(Expression::Literal(Literal::Identifier(
+                                tokens[index].clone(),
+                            ))),
+                        }),
+                        primary_after,
+                    ));
+                }
+                TokenKind::Number => {
+                    return Some((
+                        Expression::UnaryOperation(UnaryOperation {
+                            is_pre: false,
+                            operator: tokens[possible_unary_op].clone(),
+                            exp: Box::new(Expression::Literal(Literal::Number(
+                                tokens[index].clone(),
+                            ))),
+                        }),
+                        primary_after,
+                    ));
+                }
+                _ => {}
+            }
+        }
+    }
+    None
+}
+
+fn try_function_call<'a>(
+    raw: &[char],
+    tokens: &[Token<'a>],
+    index: usize,
+) -> Option<(Expression<'a>, usize)> {
+    if expect_identifier(tokens, index) {
+        let op_parenthesis = index + 1;
+        if expect_syntax(tokens, op_parenthesis, &SYNTAX_OP.to_string()) {
+            let mut i = op_parenthesis + 1;
+            let mut expressions: Vec<Expression<'a>> = Vec::new();
+            while i < tokens.len() {
+                if expect_syntax(tokens, i, &SYNTAX_CP.to_string()) {
+                    break;
+                }
+                if expressions.len() > 0 && !expect_syntax(tokens, i, &SYNTAX_CM.to_string()) {
+                    return None;
+                }
+                i = i + 1;
+                if let Some((exp, end)) = parse_expression(raw, tokens, i, 0) {
+                    expressions.push(exp);
+                    i = end;
+                } else {
+                    return None;
+                }
+            }
+            return Some((
+                Expression::FunctionCall(FunctionCall {
+                    name: tokens[index].clone(),
+                    arguments: expressions,
+                }),
+                i + 1,
+            ));
+        }
+    }
+    None
+}
+
+fn try_identifier<'a>(
+    raw: &[char],
+    tokens: &[Token<'a>],
+    index: usize,
+) -> Option<(Expression<'a>, usize)> {
+    if tokens[index].kind() == TokenKind::Identifier {
+        return Some((
+            Expression::Literal(Literal::Identifier(tokens[index].clone())),
+            index + 1,
+        ));
+    }
+    None
+}
+
+fn try_number<'a>(
+    raw: &[char],
+    tokens: &[Token<'a>],
+    index: usize,
+) -> Option<(Expression<'a>, usize)> {
+    if tokens[index].kind() == TokenKind::Identifier {
+        return Some((
+            Expression::Literal(Literal::Number(tokens[index].clone())),
+            index + 1,
+        ));
+    }
+    None
+}
+
 fn parse_primary<'a>(
     raw: &[char],
     tokens: &[Token<'a>],
     index: usize,
 ) -> Option<(Expression<'a>, usize)> {
     if index < tokens.len() {
-        if tokens[index].kind() == TokenKind::Syntax
-            && expect_syntax(tokens, index, &SYNTAX_OP.to_string())
-        {
-            let exp_begin_idx = index + 1;
-            if let Some((exp, i)) = parse_expression(raw, tokens, exp_begin_idx, 0) {
-                if expect_syntax(tokens, i, &SYNTAX_CP.to_string()) {
-                    return Some((exp, i + 1));
-                }
+        let primary_expressions_parser = [
+            try_pre_unary_operator,
+            try_post_unary_operator,
+            try_parethesized,
+            try_function_call,
+            try_identifier,
+            try_number,
+        ];
+        for primary_parser in primary_expressions_parser {
+            if let Some(duo) = primary_parser(raw, tokens, index) {
+                return Some(duo);
             }
-        } //else if tokens[index].kind() == TokenKind::Number && 
-
+        }
     }
     None
 }
@@ -161,6 +322,31 @@ fn parse_expression<'a>(
     index: usize,
     min_precedence: usize,
 ) -> Option<(Expression<'a>, usize)> {
-    if index < tokens.len() {}
+    if index < tokens.len() {
+        let (mut lhs, mut i) = parse_primary(raw, tokens, index)?;
+        while i < tokens.len() {
+            if tokens[i].kind() != TokenKind::Operator {
+                break;
+            }
+            let new_precedence = operator_precedence(tokens[i].value())
+                + if is_right_associative(tokens[i].value()) {
+                    0
+                } else {
+                    1
+                };
+            if new_precedence < min_precedence {
+                break;
+            }
+            let (rhs, new_i) = parse_expression(raw, tokens, i + 1, new_precedence)?;
+            lhs = Expression::BinaryOperation(BinaryOperation {
+                operator: tokens[i].clone(),
+                left: Box::new(lhs),
+                right: Box::new(rhs),
+            });
+            i = new_i;
+        }
+
+        return Some((lhs, i));
+    }
     None
 }

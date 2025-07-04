@@ -15,12 +15,12 @@ fn main() {
     };
 
     for token in tokens {
-        match token.kind {
-            TokenKind::Identifier => println!("{} : Identifier", token.value()),
-            TokenKind::Syntax => println!("{} : Syntax", token.value()),
-            TokenKind::Keyword => println!("{} : Keyword", token.value()),
-            TokenKind::Number => println!("{} : Number", token.value()),
-            TokenKind::Operator => println!("{} : Operator", token.value()),
+        match token.kind() {
+            TokenKind::Identifier => println!("{} : Identifier", String::from_iter(token.value())),
+            TokenKind::Syntax => println!("{} : Syntax", String::from_iter(token.value())),
+            TokenKind::Keyword => println!("{} : Keyword", String::from_iter(token.value())),
+            TokenKind::Number => println!("{} : Number", String::from_iter(token.value())),
+            TokenKind::Operator => println!("{} : Operator", String::from_iter(token.value())),
         }
     }
 }

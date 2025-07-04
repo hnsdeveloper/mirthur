@@ -37,7 +37,9 @@ pub const SYNTAX_CM: char = ',';
 pub const SYNTAX: [char; 5] = [SYNTAX_SC, SYNTAX_EQ, SYNTAX_OP, SYNTAX_CP, SYNTAX_CM];
 
 // Operators
+pub const OP_INC: &str = "++";
 pub const OP_PLUS: &str = "+";
+pub const OP_DEC: &str = "--";
 pub const OP_MINUS: &str = "-";
 pub const OP_POW: &str = "**";
 pub const OP_MUL: &str = "*";
@@ -50,6 +52,7 @@ pub const OP_GT: &str = ">";
 pub const OP_CMP: &str = "==";
 pub const OP_DOT: &str = ".";
 
-pub const OPERATORS: [&str; 12] = [
-    OP_PLUS, OP_MINUS, OP_POW, OP_MUL, OP_DIV, OP_MOD, OP_SHL, OP_LT, OP_SHR, OP_GT, OP_CMP, OP_DOT,
+pub const OPERATORS: [&str; 14] = [
+    OP_INC, OP_PLUS, OP_DEC, OP_MINUS, OP_POW, OP_MUL, OP_DIV, OP_MOD, OP_SHL, OP_LT, OP_SHR,
+    OP_GT, OP_CMP, OP_DOT,
 ];

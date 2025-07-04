@@ -1,5 +1,5 @@
-use super::parsing_symbols::*;
 use super::lexer::{Token, TokenKind};
+use super::parsing_symbols::*;
 
 pub fn a_biased_strcmp(a: &[char], b: &[char]) -> bool {
     if b.len() >= a.len() && a.len() > 0 && b.len() > 0 {
@@ -84,6 +84,14 @@ pub fn is_syntax(raw: &[char]) -> Option<usize> {
     None
 }
 
+pub fn is_right_associative(raw: &[char]) -> bool {
+    todo!()
+}
+
+pub fn operator_precedence(raw: &[char]) -> usize {
+    todo!()
+}
+
 pub fn is_operator(raw: &[char]) -> Option<usize> {
     let operators: Vec<Vec<char>> = OPERATORS
         .iter()
@@ -98,12 +106,29 @@ pub fn is_operator(raw: &[char]) -> Option<usize> {
     None
 }
 
+pub fn is_token_operator(tokens: &[Token<'_>], index: usize) -> bool {
+    for operator in OPERATORS {
+        if expect_operator(tokens, index, operator) {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn expect_operator(tokens: &[Token<'_>], index: usize, value: &str) -> bool {
+    if index >= tokens.len() {
+        return false;
+    }
+    tokens[index].kind() == TokenKind::Operator
+        && a_biased_strcmp(tokens[index].value(), &value.chars().collect::<Vec<char>>())
+}
+
 pub fn expect_keyword(tokens: &[Token<'_>], index: usize, value: &str) -> bool {
     if index >= tokens.len() {
         return false;
     }
     tokens[index].kind() == TokenKind::Keyword
-        && a_biased_strcmp(tokens[index].value, &value.chars().collect::<Vec<char>>())
+        && a_biased_strcmp(tokens[index].value(), &value.chars().collect::<Vec<char>>())
 }
 
 pub fn expect_syntax(tokens: &[Token<'_>], index: usize, value: &str) -> bool {
@@ -111,7 +136,7 @@ pub fn expect_syntax(tokens: &[Token<'_>], index: usize, value: &str) -> bool {
         return false;
     }
     tokens[index].kind() == TokenKind::Syntax
-        && a_biased_strcmp(tokens[index].value, &value.chars().collect::<Vec<char>>())
+        && a_biased_strcmp(tokens[index].value(), &value.chars().collect::<Vec<char>>())
 }
 
 pub fn expect_identifier(tokens: &[Token<'_>], index: usize) -> bool {

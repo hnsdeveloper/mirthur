@@ -73,9 +73,9 @@ pub enum TokenKind {
 
 #[derive(Clone)]
 pub struct Token<'a> {
-    pub value: &'a [char],
-    pub kind: TokenKind,
-    pub loc: Location,
+    value: &'a [char],
+    kind: TokenKind,
+    loc: Location,
 }
 
 impl<'a> Token<'a> {
@@ -91,8 +91,8 @@ impl<'a> Token<'a> {
         self.loc
     }
 
-    pub fn value(self: &Self) -> String {
-        String::from_iter(self.value)
+    pub fn value(self: &Self) -> &[char] {
+        self.value
     }
 }
 
@@ -217,7 +217,6 @@ fn lex_syntax(raw: &'_ [char], initial_loc: Location) -> Option<(Token<'_>, Loca
     }
     None
 }
-
 
 fn lex_operator(raw: &'_ [char], initial_loc: Location) -> Option<(Token<'_>, Location)> {
     match is_operator(&raw[initial_loc.index..]) {
