@@ -46,13 +46,15 @@ pub const OP_MUL: &str = "*";
 pub const OP_DIV: &str = "/";
 pub const OP_MOD: &str = "%";
 pub const OP_SHL: &str = "<<";
+pub const OP_LTE: &str = "<=";
 pub const OP_LT: &str = "<";
 pub const OP_SHR: &str = ">>";
+pub const OP_GTE: &str = ">";
 pub const OP_GT: &str = ">";
 pub const OP_CMP: &str = "==";
 pub const OP_DOT: &str = ".";
 
-pub const OPERATORS: [&str; 14] = [
-    OP_INC, OP_PLUS, OP_DEC, OP_MINUS, OP_POW, OP_MUL, OP_DIV, OP_MOD, OP_SHL, OP_LT, OP_SHR,
-    OP_GT, OP_CMP, OP_DOT,
+pub const OPERATORS: [&str; 16] = [
+    OP_INC, OP_PLUS, OP_DEC, OP_MINUS, OP_POW, OP_MUL, OP_DIV, OP_MOD, OP_SHL, OP_LTE, OP_LT,
+    OP_SHR, OP_GTE, OP_GT, OP_CMP, OP_DOT,
 ];
