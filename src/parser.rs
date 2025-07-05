@@ -1,5 +1,3 @@
-use std::os::macos::raw;
-
 use super::helpers::*;
 use super::lexer::{Token, TokenKind};
 use super::parsing_symbols::*;
@@ -51,8 +49,8 @@ pub struct FunctionDeclaration<'a> {
 }
 
 pub struct If<'a> {
-    pub test: Box<Expression<'a>>,
-    pub body: Vec<Statement<'a>>,
+    pub tests: Vec<Expression<'a>>,
+    pub bodies: Vec<Vec<Statement<'a>>>,
 }
 
 pub struct Let<'a> {
@@ -97,6 +95,92 @@ fn parse_statement<'a>(
     todo!();
 }
 
+// Inner body of function declarations and if statements.
+fn parse_inner_body<'a>(
+    raw: &[char],
+    tokens: &[Token<'a>],
+    index: usize,
+) -> Option<(Vec<Statement<'a>>, usize)> {
+    let mut v: Vec<_> = Vec::new();
+    let mut i = index;
+
+    while i < tokens.len() {}
+
+    Some((v, i))
+}
+
+fn parse_if<'a>(
+    raw: &[char],
+    tokens: &[Token<'a>],
+    mut index: usize,
+) -> Option<(Statement<'a>, usize)> {
+    if index < tokens.len() {
+        if expect_keyword(tokens, index, "if") {
+            let mut tests: Vec<Expression<'a>> = Vec::new();
+            let mut bodies: Vec<Vec<Statement<'a>>> = Vec::new();
+            index += 1;
+            let (exp, i) = parse_expression(raw, tokens, index, 0)?;
+            index = i;
+            if !expect_keyword(tokens, index, "then") {
+                return None;
+            }
+            index += 1;
+            let (stmt, i) = parse_inner_body(raw, tokens, index)?;
+            index = i;
+            bodies.push(stmt);
+            while index < tokens.len() {
+                if expect_keyword(tokens, index, "elif") {
+                    index += 1;
+                    let (elif_test, i) = parse_expression(raw, tokens, index, 0)?;
+                    index = i;
+                    if !expect_keyword(tokens, index, "then") {
+                        return None;
+                    }
+                    index += 1;
+                    let (elif_stmt, i) = parse_inner_body(raw, tokens, index)?;
+                    index = i;
+                    tests.push(elif_test);
+                    bodies.push(elif_stmt);
+                    continue;
+                }
+                if expect_keyword(tokens, index, "else") {
+                    index += 1;
+                    index = i;
+                    // If there is an else, we will have one extra statement without test. In the virtual machine, for it
+                    // to work properly, we add a test that always returns > 0.
+                    let (else_stmt, i) = parse_inner_body(raw, tokens, index)?;
+                    bodies.push(else_stmt);
+                }
+                if expect_keyword(tokens, index, "end") {
+                    return Some((Statement::If(If { tests, bodies }), index + 1));
+                }
+                break;
+            }
+        }
+    }
+    None
+}
+
+fn parse_return<'a>(
+    raw: &[char],
+    tokens: &[Token<'a>],
+    index: usize,
+) -> Option<(Statement<'a>, usize)> {
+    if index < tokens.len() {
+        if expect_keyword(tokens, index, "return") {
+            // Check if we have an empty return
+            let i = index + 1;
+            if expect_syntax(tokens, i, &SYNTAX_SC.to_string()) {
+                return Some((Statement::Return(Return { exp: None }), i + 1));
+            }
+            if let Some((exp, i)) = parse_expression(raw, tokens, i, 0) {
+                return Some((Statement::Return(Return { exp: Some(exp) }), 1));
+            }
+        }
+    }
+    None
+}
+
 fn parse_let<'a>(
     raw: &[char],
     tokens: &[Token<'a>],
@@ -137,7 +221,7 @@ fn parse_expression_statement<'a>(
     None
 }
 
-// Handles expressions into parenthesis
+// The functions below are concerned with parsing expressions.
 fn try_parethesized<'a>(
     raw: &[char],
     tokens: &[Token<'a>],

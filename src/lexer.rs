@@ -1,9 +1,11 @@
+use std::usize;
+
 use super::helpers::*;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Location {
-    col: i32,
-    line: i32,
+    col: usize,
+    line: usize,
     index: usize,
 }
 
@@ -13,6 +15,14 @@ impl Location {
             col: 0,
             line: 0,
             index: 0,
+        }
+    }
+
+    pub fn invalid() -> Self {
+        Self {
+            col: usize::MAX,
+            line: usize::MAX,
+            index: usize::MAX,
         }
     }
 
@@ -41,6 +51,9 @@ impl Location {
     }
 
     pub fn debug<S: Into<String>>(self: &Self, raw: &[char], msg: S) -> String {
+        if *self == Self::invalid() {
+            return format!("On compiler generated token {}", String::from_iter(raw));
+        }
         let mut line = 0;
         let mut line_str = String::new();
 
