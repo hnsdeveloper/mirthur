@@ -96,7 +96,7 @@ fn parse_statement<'a>(
 }
 
 // Inner body of function declarations and if statements.
-fn parse_inner_body<'a>(
+fn parse_inner_if<'a>(
     raw: &[char],
     tokens: &[Token<'a>],
     index: usize,
@@ -104,7 +104,29 @@ fn parse_inner_body<'a>(
     let mut v: Vec<_> = Vec::new();
     let mut i = index;
 
-    while i < tokens.len() {}
+    let parse_fns = [
+        parse_expression_statement,
+        parse_if,
+        parse_let,
+        parse_return,
+    ];
+    while i < tokens.len() {
+        for parse_fn in parse_fns {
+            if let Some((s, new_i)) = parse_fn(raw, tokens, i) {
+                i = new_i;
+                v.push(s);
+                continue;
+            }
+        }
+        if expect_keyword(tokens, i, "elif")
+            || expect_keyword(tokens, i, "else")
+            || expect_keyword(tokens, i, "end")
+        {
+            break;
+        } else {
+            return None;
+        }
+    }
 
     Some((v, i))
 }
@@ -125,7 +147,7 @@ fn parse_if<'a>(
                 return None;
             }
             index += 1;
-            let (stmt, i) = parse_inner_body(raw, tokens, index)?;
+            let (stmt, i) = parse_inner_if(raw, tokens, index)?;
             index = i;
             bodies.push(stmt);
             while index < tokens.len() {
@@ -137,7 +159,7 @@ fn parse_if<'a>(
                         return None;
                     }
                     index += 1;
-                    let (elif_stmt, i) = parse_inner_body(raw, tokens, index)?;
+                    let (elif_stmt, i) = parse_inner_if(raw, tokens, index)?;
                     index = i;
                     tests.push(elif_test);
                     bodies.push(elif_stmt);
@@ -148,7 +170,7 @@ fn parse_if<'a>(
                     index = i;
                     // If there is an else, we will have one extra statement without test. In the virtual machine, for it
                     // to work properly, we add a test that always returns > 0.
-                    let (else_stmt, i) = parse_inner_body(raw, tokens, index)?;
+                    let (else_stmt, i) = parse_inner_if(raw, tokens, index)?;
                     bodies.push(else_stmt);
                 }
                 if expect_keyword(tokens, index, "end") {
@@ -208,6 +230,7 @@ fn parse_let<'a>(
     None
 }
 
+// The functions below are concerned with parsing expressions.
 fn parse_expression_statement<'a>(
     raw: &[char],
     tokens: &[Token<'a>],
@@ -221,7 +244,64 @@ fn parse_expression_statement<'a>(
     None
 }
 
-// The functions below are concerned with parsing expressions.
+fn parse_expression<'a>(
+    raw: &[char],
+    tokens: &[Token<'a>],
+    index: usize,
+    min_precedence: usize,
+) -> Option<(Expression<'a>, usize)> {
+    if index < tokens.len() {
+        let (mut lhs, mut i) = parse_primary(raw, tokens, index)?;
+        while i < tokens.len() {
+            if tokens[i].kind() != TokenKind::Operator {
+                break;
+            }
+            let new_precedence = operator_precedence(tokens[i].value())
+                + if is_right_associative(tokens[i].value()) {
+                    0
+                } else {
+                    1
+                };
+            if new_precedence < min_precedence {
+                break;
+            }
+            let (rhs, new_i) = parse_expression(raw, tokens, i + 1, new_precedence)?;
+            lhs = Expression::BinaryOperation(BinaryOperation {
+                operator: tokens[i].clone(),
+                left: Box::new(lhs),
+                right: Box::new(rhs),
+            });
+            i = new_i;
+        }
+
+        return Some((lhs, i));
+    }
+    None
+}
+
+fn parse_primary<'a>(
+    raw: &[char],
+    tokens: &[Token<'a>],
+    index: usize,
+) -> Option<(Expression<'a>, usize)> {
+    if index < tokens.len() {
+        let primary_expressions_parser = [
+            try_pre_unary_operator,
+            try_post_unary_operator,
+            try_parethesized,
+            try_function_call,
+            try_identifier,
+            try_number,
+        ];
+        for primary_parser in primary_expressions_parser {
+            if let Some(duo) = primary_parser(raw, tokens, index) {
+                return Some(duo);
+            }
+        }
+    }
+    None
+}
+
 fn try_parethesized<'a>(
     raw: &[char],
     tokens: &[Token<'a>],
@@ -373,64 +453,6 @@ fn try_number<'a>(
             Expression::Literal(Literal::Number(tokens[index].clone())),
             index + 1,
         ));
-    }
-    None
-}
-
-fn parse_primary<'a>(
-    raw: &[char],
-    tokens: &[Token<'a>],
-    index: usize,
-) -> Option<(Expression<'a>, usize)> {
-    if index < tokens.len() {
-        let primary_expressions_parser = [
-            try_pre_unary_operator,
-            try_post_unary_operator,
-            try_parethesized,
-            try_function_call,
-            try_identifier,
-            try_number,
-        ];
-        for primary_parser in primary_expressions_parser {
-            if let Some(duo) = primary_parser(raw, tokens, index) {
-                return Some(duo);
-            }
-        }
-    }
-    None
-}
-
-fn parse_expression<'a>(
-    raw: &[char],
-    tokens: &[Token<'a>],
-    index: usize,
-    min_precedence: usize,
-) -> Option<(Expression<'a>, usize)> {
-    if index < tokens.len() {
-        let (mut lhs, mut i) = parse_primary(raw, tokens, index)?;
-        while i < tokens.len() {
-            if tokens[i].kind() != TokenKind::Operator {
-                break;
-            }
-            let new_precedence = operator_precedence(tokens[i].value())
-                + if is_right_associative(tokens[i].value()) {
-                    0
-                } else {
-                    1
-                };
-            if new_precedence < min_precedence {
-                break;
-            }
-            let (rhs, new_i) = parse_expression(raw, tokens, i + 1, new_precedence)?;
-            lhs = Expression::BinaryOperation(BinaryOperation {
-                operator: tokens[i].clone(),
-                left: Box::new(lhs),
-                right: Box::new(rhs),
-            });
-            i = new_i;
-        }
-
-        return Some((lhs, i));
     }
     None
 }
