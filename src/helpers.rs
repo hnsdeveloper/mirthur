@@ -1,19 +1,14 @@
 use super::lexer::{Token, TokenKind};
 use super::parsing_symbols::*;
 
-pub fn a_biased_strcmp(a: &[char], b: &[char]) -> bool {
-    if b.len() >= a.len() && a.len() > 0 && b.len() > 0 {
-        let mut i = 0;
-        while i < a.len() {
-            if a[i] == b[i] {
-                i += 1;
-            } else {
-                break;
+pub fn is_a_substring_of_b(a: &[char], b: &[char]) -> bool {
+    if b.len() >= a.len() && a.len() != 0 {
+        for i in 0..a.len() {
+            if a[i] != b[i] {
+                return false;
             }
         }
-        if i == a.len() {
-            return true;
-        }
+        return true;
     }
     false
 }
@@ -24,7 +19,7 @@ pub fn is_whitespace(raw: &[char]) -> Option<usize> {
         .map(|keyword| keyword.chars().collect::<Vec<char>>())
         .collect();
     for s in whitespace {
-        if a_biased_strcmp(&s, raw) {
+        if is_a_substring_of_b(&s, raw) {
             return Some(s.len());
         }
     }
@@ -66,7 +61,7 @@ pub fn is_keyword(raw: &[char]) -> Option<usize> {
         .collect();
 
     for keyword in keywords {
-        if a_biased_strcmp(&keyword, raw) {
+        if is_a_substring_of_b(&keyword, raw) {
             return Some(keyword.len());
         }
     }
@@ -85,11 +80,22 @@ pub fn is_syntax(raw: &[char]) -> Option<usize> {
 }
 
 pub fn is_right_associative(raw: &[char]) -> bool {
-    todo!()
+    match String::from_iter(raw).as_str() {
+        OP_POW => return true,
+        _ => return false,
+    }
 }
 
 pub fn operator_precedence(raw: &[char]) -> usize {
-    todo!()
+    match String::from_iter(raw).as_str() {
+        OP_EQ | OP_NEQ => 0,
+        OP_LT | OP_LTE | OP_GT | OP_GTE => 10,
+        OP_SHL | OP_SHR => 20,
+        OP_PLUS | OP_MINUS => 30,
+        OP_MUL | OP_DIV | OP_MOD => 40,
+        OP_POW => 50,
+        _ => panic!("Invalid operator."),
+    }
 }
 
 pub fn is_operator(raw: &[char]) -> Option<usize> {
@@ -99,44 +105,41 @@ pub fn is_operator(raw: &[char]) -> Option<usize> {
         .collect();
 
     for operator in operators {
-        if a_biased_strcmp(&operator, raw) {
+        if is_a_substring_of_b(&operator, raw) {
             return Some(operator.len());
         }
     }
     None
 }
 
-pub fn is_token_operator(tokens: &[Token<'_>], index: usize) -> bool {
-    for operator in OPERATORS {
-        if expect_operator(tokens, index, operator) {
-            return true;
-        }
-    }
-    false
-}
-
 pub fn expect_operator(tokens: &[Token<'_>], index: usize, value: &str) -> bool {
     if index >= tokens.len() {
         return false;
     }
+    let p = value.chars().collect::<Vec<char>>();
     tokens[index].kind() == TokenKind::Operator
-        && a_biased_strcmp(tokens[index].value(), &value.chars().collect::<Vec<char>>())
+        && p.len() == tokens[index].value().len()
+        && is_a_substring_of_b(tokens[index].value(), &p)
 }
 
 pub fn expect_keyword(tokens: &[Token<'_>], index: usize, value: &str) -> bool {
     if index >= tokens.len() {
         return false;
     }
+    let p = value.chars().collect::<Vec<char>>();
     tokens[index].kind() == TokenKind::Keyword
-        && a_biased_strcmp(tokens[index].value(), &value.chars().collect::<Vec<char>>())
+        && p.len() == tokens[index].value().len()
+        && is_a_substring_of_b(tokens[index].value(), &p)
 }
 
 pub fn expect_syntax(tokens: &[Token<'_>], index: usize, value: &str) -> bool {
     if index >= tokens.len() {
         return false;
     }
+    let p = value.chars().collect::<Vec<char>>();
     tokens[index].kind() == TokenKind::Syntax
-        && a_biased_strcmp(tokens[index].value(), &value.chars().collect::<Vec<char>>())
+        && p.len() == tokens[index].value().len()
+        && is_a_substring_of_b(tokens[index].value(), &p)
 }
 
 pub fn expect_identifier(tokens: &[Token<'_>], index: usize) -> bool {

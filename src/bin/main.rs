@@ -14,7 +14,7 @@ fn main() {
         Err(msg) => panic!("{}", msg),
     };
 
-    for token in tokens {
+    for token in tokens.iter() {
         match token.kind() {
             TokenKind::Identifier => println!("{} : Identifier", String::from_iter(token.value())),
             TokenKind::Syntax => println!("{} : Syntax", String::from_iter(token.value())),
@@ -23,4 +23,9 @@ fn main() {
             TokenKind::Operator => println!("{} : Operator", String::from_iter(token.value())),
         }
     }
+
+    let ast = match Parser::parse(&raw, &tokens) {
+        Ok(ast) => println!("{}", ast.len()),
+        Err(_) => println!("Error while parsing."),
+    };
 }

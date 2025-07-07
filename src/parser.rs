@@ -2,7 +2,7 @@ use super::helpers::*;
 use super::lexer::{Token, TokenKind};
 use super::parsing_symbols::*;
 
-type AST<'a> = Vec<Statement<'a>>;
+pub type AST<'a> = Vec<Statement<'a>>;
 
 pub enum Statement<'a> {
     Expression(Expression<'a>),
@@ -65,7 +65,7 @@ pub struct Return<'a> {
 pub struct Parser {}
 
 impl Parser {
-    pub fn parse<'a>(raw: &[char], tokens: &'a [Token]) -> Result<AST<'a>, String> {
+    pub fn parse<'a>(raw: &'a [char], tokens: &'a [Token]) -> Result<AST<'a>, String> {
         let mut ast = vec![];
         let mut i = 0;
         while i < tokens.len() {
@@ -88,16 +88,46 @@ impl Parser {
 }
 
 fn parse_statement<'a>(
-    raw: &[char],
+    raw: &'a [char],
     tokens: &[Token<'a>],
     idx: usize,
 ) -> Result<(Statement<'a>, usize), (String, String)> {
-    todo!();
+    let parse_fns = [parse_let];
+    for parse_fn in parse_fns {
+        if let Some((stmt, i)) = parse_fn(raw, tokens, idx) {
+            return Ok((stmt, i));
+        }
+    }
+    Err((String::from(""), String::from("")))
 }
 
-// Inner body of function declarations and if statements.
-fn parse_inner_if<'a>(
-    raw: &[char],
+fn parse_function_parameters<'a>(
+    _raw: &'a [char],
+    tokens: &[Token<'a>],
+    mut index: usize,
+) -> Option<(Vec<Token<'a>>, usize)> {
+    let mut v: Vec<Token<'a>> = Vec::new();
+    while index < tokens.len() {
+        if expect_syntax(tokens, index, &SYNTAX_CP.to_string()) {
+            break;
+        }
+        if v.len() > 0 && !expect_syntax(tokens, index, &SYNTAX_CP.to_string()) {
+            return None;
+        } else if v.len() > 0 && expect_syntax(tokens, index, &SYNTAX_CP.to_string()) {
+            index += 1;
+        }
+        if expect_identifier(tokens, index) {
+            v.push(tokens[index].clone());
+        } else {
+            return None;
+        }
+        index += 1;
+    }
+    Some((v, index + 1))
+}
+
+fn parse_function_inner_body<'a>(
+    raw: &'a [char],
     tokens: &[Token<'a>],
     index: usize,
 ) -> Option<(Vec<Statement<'a>>, usize)> {
@@ -118,44 +148,108 @@ fn parse_inner_if<'a>(
                 continue;
             }
         }
-        if expect_keyword(tokens, i, "elif")
-            || expect_keyword(tokens, i, "else")
-            || expect_keyword(tokens, i, "end")
+        if expect_keyword(tokens, i, KW_END) {
+            break;
+        } else {
+            return None;
+        }
+    }
+    Some((v, i))
+}
+
+fn parse_function_declaration<'a>(
+    raw: &'a [char],
+    tokens: &[Token<'a>],
+    mut index: usize,
+) -> Option<(Statement<'a>, usize)> {
+    if expect_keyword(tokens, index, KW_FUNCTION) {
+        index = index + 1;
+        if expect_identifier(tokens, index) {
+            let name = tokens[index].clone();
+            index = index + 1;
+            if expect_syntax(tokens, index, &SYNTAX_OP.to_string()) {
+                index = index + 1;
+                let (parameters, i) = parse_function_parameters(raw, tokens, index)?;
+                index = i;
+                let (body, i) = parse_function_inner_body(raw, tokens, index)?;
+                index = i;
+                if expect_keyword(tokens, index, KW_END) {
+                    return Some((
+                        Statement::FunctionDeclaration(FunctionDeclaration {
+                            name,
+                            parameters,
+                            body,
+                        }),
+                        index + 1,
+                    ));
+                }
+            }
+        }
+    }
+    None
+}
+
+// Inner body of function declarations and if statements.
+fn parse_inner_if<'a>(
+    raw: &'a [char],
+    tokens: &[Token<'a>],
+    index: usize,
+) -> Option<(Vec<Statement<'a>>, usize)> {
+    let mut v: Vec<_> = Vec::new();
+    let mut i = index;
+
+    let parse_fns = [
+        parse_expression_statement,
+        parse_if,
+        parse_let,
+        parse_return,
+    ];
+    while i < tokens.len() {
+        for parse_fn in parse_fns {
+            if let Some((s, new_i)) = parse_fn(raw, tokens, i) {
+                i = new_i;
+                v.push(s);
+                continue;
+            }
+        }
+        if expect_keyword(tokens, i, KW_ELIF)
+            || expect_keyword(tokens, i, KW_ELSE)
+            || expect_keyword(tokens, i, KW_END)
         {
             break;
         } else {
             return None;
         }
     }
-
     Some((v, i))
 }
 
 fn parse_if<'a>(
-    raw: &[char],
+    raw: &'a [char],
     tokens: &[Token<'a>],
     mut index: usize,
 ) -> Option<(Statement<'a>, usize)> {
     if index < tokens.len() {
-        if expect_keyword(tokens, index, "if") {
+        if expect_keyword(tokens, index, KW_IF) {
             let mut tests: Vec<Expression<'a>> = Vec::new();
             let mut bodies: Vec<Vec<Statement<'a>>> = Vec::new();
             index += 1;
             let (exp, i) = parse_expression(raw, tokens, index, 0)?;
             index = i;
-            if !expect_keyword(tokens, index, "then") {
+            if !expect_keyword(tokens, index, KW_THEN) {
                 return None;
             }
             index += 1;
             let (stmt, i) = parse_inner_if(raw, tokens, index)?;
             index = i;
+            tests.push(exp);
             bodies.push(stmt);
             while index < tokens.len() {
-                if expect_keyword(tokens, index, "elif") {
+                if expect_keyword(tokens, index, KW_ELIF) {
                     index += 1;
                     let (elif_test, i) = parse_expression(raw, tokens, index, 0)?;
                     index = i;
-                    if !expect_keyword(tokens, index, "then") {
+                    if !expect_keyword(tokens, index, KW_THEN) {
                         return None;
                     }
                     index += 1;
@@ -165,15 +259,15 @@ fn parse_if<'a>(
                     bodies.push(elif_stmt);
                     continue;
                 }
-                if expect_keyword(tokens, index, "else") {
+                if expect_keyword(tokens, index, KW_ELSE) {
                     index += 1;
-                    index = i;
                     // If there is an else, we will have one extra statement without test. In the virtual machine, for it
                     // to work properly, we add a test that always returns > 0.
                     let (else_stmt, i) = parse_inner_if(raw, tokens, index)?;
+                    index = i;
                     bodies.push(else_stmt);
                 }
-                if expect_keyword(tokens, index, "end") {
+                if expect_keyword(tokens, index, KW_END) {
                     return Some((Statement::If(If { tests, bodies }), index + 1));
                 }
                 break;
@@ -184,19 +278,21 @@ fn parse_if<'a>(
 }
 
 fn parse_return<'a>(
-    raw: &[char],
+    raw: &'a [char],
     tokens: &[Token<'a>],
     index: usize,
 ) -> Option<(Statement<'a>, usize)> {
     if index < tokens.len() {
-        if expect_keyword(tokens, index, "return") {
+        if expect_keyword(tokens, index, KW_RETURN) {
             // Check if we have an empty return
             let i = index + 1;
             if expect_syntax(tokens, i, &SYNTAX_SC.to_string()) {
                 return Some((Statement::Return(Return { exp: None }), i + 1));
             }
             if let Some((exp, i)) = parse_expression(raw, tokens, i, 0) {
-                return Some((Statement::Return(Return { exp: Some(exp) }), 1));
+                if expect_syntax(tokens, i, &SYNTAX_SC.to_string()) {
+                    return Some((Statement::Return(Return { exp: Some(exp) }), i + 1));
+                }
             }
         }
     }
@@ -204,11 +300,11 @@ fn parse_return<'a>(
 }
 
 fn parse_let<'a>(
-    raw: &[char],
+    raw: &'a [char],
     tokens: &[Token<'a>],
     index: usize,
 ) -> Option<(Statement<'a>, usize)> {
-    if expect_syntax(tokens, index, &KW_LET) {
+    if expect_keyword(tokens, index, &KW_LET) {
         let id_idx = index + 1;
         if expect_identifier(tokens, id_idx) {
             let eq_idx = id_idx + 1;
@@ -219,7 +315,7 @@ fn parse_let<'a>(
                         name: tokens[id_idx].clone(),
                         exp,
                     });
-                    let semicolon_idx = idx + 1;
+                    let semicolon_idx = idx;
                     if expect_syntax(tokens, semicolon_idx, &SYNTAX_SC.to_string()) {
                         return Some((stmt, semicolon_idx + 1));
                     }
@@ -232,7 +328,7 @@ fn parse_let<'a>(
 
 // The functions below are concerned with parsing expressions.
 fn parse_expression_statement<'a>(
-    raw: &[char],
+    raw: &'a [char],
     tokens: &[Token<'a>],
     index: usize,
 ) -> Option<(Statement<'a>, usize)> {
@@ -245,7 +341,7 @@ fn parse_expression_statement<'a>(
 }
 
 fn parse_expression<'a>(
-    raw: &[char],
+    raw: &'a [char],
     tokens: &[Token<'a>],
     index: usize,
     min_precedence: usize,
@@ -280,7 +376,7 @@ fn parse_expression<'a>(
 }
 
 fn parse_primary<'a>(
-    raw: &[char],
+    raw: &'a [char],
     tokens: &[Token<'a>],
     index: usize,
 ) -> Option<(Expression<'a>, usize)> {
@@ -303,7 +399,7 @@ fn parse_primary<'a>(
 }
 
 fn try_parethesized<'a>(
-    raw: &[char],
+    raw: &'a [char],
     tokens: &[Token<'a>],
     index: usize,
 ) -> Option<(Expression<'a>, usize)> {
@@ -319,7 +415,7 @@ fn try_parethesized<'a>(
 }
 
 fn try_pre_unary_operator<'a>(
-    raw: &[char],
+    raw: &'a [char],
     tokens: &[Token<'a>],
     index: usize,
 ) -> Option<(Expression<'a>, usize)> {
@@ -338,7 +434,7 @@ fn try_pre_unary_operator<'a>(
 }
 
 fn try_post_unary_operator<'a>(
-    raw: &[char],
+    raw: &'a [char],
     tokens: &[Token<'a>],
     index: usize,
 ) -> Option<(Expression<'a>, usize)> {
@@ -393,7 +489,7 @@ fn try_post_unary_operator<'a>(
 }
 
 fn try_function_call<'a>(
-    raw: &[char],
+    raw: &'a [char],
     tokens: &[Token<'a>],
     index: usize,
 ) -> Option<(Expression<'a>, usize)> {
@@ -408,8 +504,10 @@ fn try_function_call<'a>(
                 }
                 if expressions.len() > 0 && !expect_syntax(tokens, i, &SYNTAX_CM.to_string()) {
                     return None;
+                } else if expressions.len() > 0 && expect_syntax(tokens, i, &SYNTAX_CM.to_string())
+                {
+                    i += 1;
                 }
-                i = i + 1;
                 if let Some((exp, end)) = parse_expression(raw, tokens, i, 0) {
                     expressions.push(exp);
                     i = end;
@@ -430,7 +528,7 @@ fn try_function_call<'a>(
 }
 
 fn try_identifier<'a>(
-    raw: &[char],
+    _raw: &'a [char],
     tokens: &[Token<'a>],
     index: usize,
 ) -> Option<(Expression<'a>, usize)> {
@@ -444,11 +542,11 @@ fn try_identifier<'a>(
 }
 
 fn try_number<'a>(
-    raw: &[char],
+    _raw: &'a [char],
     tokens: &[Token<'a>],
     index: usize,
 ) -> Option<(Expression<'a>, usize)> {
-    if tokens[index].kind() == TokenKind::Identifier {
+    if tokens[index].kind() == TokenKind::Number {
         return Some((
             Expression::Literal(Literal::Number(tokens[index].clone())),
             index + 1,

@@ -8,4 +8,6 @@ pub mod prelude {
     pub use super::lexer::Location;
     pub use super::lexer::Token;
     pub use super::lexer::TokenKind;
+    pub use super::parser::AST;
+    pub use super::parser::Parser;
 }
