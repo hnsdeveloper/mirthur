@@ -92,7 +92,13 @@ fn parse_statement<'a>(
     tokens: &[Token<'a>],
     idx: usize,
 ) -> Result<(Statement<'a>, usize), (String, String)> {
-    let parse_fns = [parse_let];
+    let parse_fns = [
+        parse_let,
+        parse_return,
+        parse_function_declaration,
+        parse_expression_statement,
+        parse_if,
+    ];
     for parse_fn in parse_fns {
         if let Some((stmt, i)) = parse_fn(raw, tokens, idx) {
             return Ok((stmt, i));
@@ -111,9 +117,9 @@ fn parse_function_parameters<'a>(
         if expect_syntax(tokens, index, &SYNTAX_CP.to_string()) {
             break;
         }
-        if v.len() > 0 && !expect_syntax(tokens, index, &SYNTAX_CP.to_string()) {
+        if v.len() > 0 && !expect_syntax(tokens, index, &SYNTAX_CM.to_string()) {
             return None;
-        } else if v.len() > 0 && expect_syntax(tokens, index, &SYNTAX_CP.to_string()) {
+        } else if v.len() > 0 && expect_syntax(tokens, index, &SYNTAX_CM.to_string()) {
             index += 1;
         }
         if expect_identifier(tokens, index) {
