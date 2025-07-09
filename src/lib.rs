@@ -1,7 +1,10 @@
+mod compiler;
+mod constants;
+mod cpu;
 mod helpers;
 mod lexer;
 mod parser;
-mod parsing_symbols;
+mod vm;
 
 pub mod prelude {
     pub use super::lexer::Lexer;

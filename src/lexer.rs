@@ -44,7 +44,7 @@ impl Location {
 
     pub fn increment_n(self: &Self, n: usize) -> Self {
         let mut other = *self;
-        for i in 0..n {
+        for _ in 0..n {
             other = other.increment(false);
         }
         other

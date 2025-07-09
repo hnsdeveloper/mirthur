@@ -8,3 +8,6 @@ name = "bevy_lua"
 path = "src/lib.rs"
 
 [dependencies]
+strum = "*"
+strum_macros = "*"
+num-traits = "*"

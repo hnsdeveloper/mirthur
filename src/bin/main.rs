@@ -4,7 +4,6 @@ use std::env;
 use std::fs;
 
 fn main() {
-    let _args: Vec<String> = env::args().collect();
     let contents = fs::read_to_string("test.mt").expect("Could not read file");
 
     let raw: Vec<char> = contents.chars().collect();

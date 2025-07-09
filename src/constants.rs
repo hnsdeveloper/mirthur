@@ -49,13 +49,18 @@ pub const OP_SHL: &str = "<<";
 pub const OP_LTE: &str = "<=";
 pub const OP_LT: &str = "<";
 pub const OP_SHR: &str = ">>";
-pub const OP_GTE: &str = ">";
+pub const OP_GTE: &str = ">=";
 pub const OP_GT: &str = ">";
 pub const OP_EQ: &str = "==";
-pub const OP_NEQ: &str = "==";
+pub const OP_NEQ: &str = "!=";
 pub const OP_DOT: &str = ".";
 
 pub const OPERATORS: [&str; 17] = [
     OP_INC, OP_PLUS, OP_DEC, OP_MINUS, OP_POW, OP_MUL, OP_DIV, OP_MOD, OP_SHL, OP_LTE, OP_LT,
     OP_SHR, OP_GTE, OP_GT, OP_EQ, OP_NEQ, OP_DOT,
 ];
+
+pub const ZERO_FLAG: u64 = 0b1;
+pub const LT_FLAG: u64 = 0b10;
+pub const GT_FLAG: u64 = 0b100;
+pub const OVERFLOW: u64 = 0b1000;
