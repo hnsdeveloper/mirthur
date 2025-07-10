@@ -18,7 +18,7 @@ impl<const N: usize> U8ByteArray for [u8; N] {
     }
 }
 
-trait OverflowOps
+trait IntegerOps
 where
     Self: Sized,
 {
@@ -26,11 +26,12 @@ where
     fn overflowing_add(self: Self, rhs: Self) -> (Self, bool);
     fn overflowing_sub(self: Self, rhs: Self) -> (Self, bool);
     fn overflowing_mul(self: Self, rhs: Self) -> (Self, bool);
+    fn as_u64(self: Self) -> u64;
     fn as_le_bytes(self: Self) -> Self::Bytes;
     fn from_be_slice(bytes: &[u8]) -> Result<Self, String>;
 }
 
-impl OverflowOps for u8 {
+impl IntegerOps for u8 {
     type Bytes = [u8; size_of::<u8>()];
     fn overflowing_add(self: Self, rhs: Self) -> (Self, bool) {
         self.overflowing_add(rhs)
@@ -56,9 +57,13 @@ impl OverflowOps for u8 {
             "Attempting to convert from smaller byte slice",
         ))
     }
+
+    fn as_u64(self: Self) -> u64 {
+        self as u64
+    }
 }
 
-impl OverflowOps for u16 {
+impl IntegerOps for u16 {
     type Bytes = [u8; size_of::<u16>()];
     fn overflowing_add(self: Self, rhs: Self) -> (Self, bool) {
         self.overflowing_add(rhs)
@@ -84,9 +89,13 @@ impl OverflowOps for u16 {
             "Attempting to convert from smaller byte slice",
         ))
     }
+
+    fn as_u64(self: Self) -> u64 {
+        self as u64
+    }
 }
 
-impl OverflowOps for u32 {
+impl IntegerOps for u32 {
     type Bytes = [u8; size_of::<u32>()];
     fn overflowing_add(self: Self, rhs: Self) -> (Self, bool) {
         self.overflowing_add(rhs)
@@ -112,9 +121,13 @@ impl OverflowOps for u32 {
             "Attempting to convert from smaller byte slice",
         ))
     }
+
+    fn as_u64(self: Self) -> u64 {
+        self as u64
+    }
 }
 
-impl OverflowOps for u64 {
+impl IntegerOps for u64 {
     type Bytes = [u8; size_of::<u64>()];
     fn overflowing_add(self: Self, rhs: Self) -> (Self, bool) {
         self.overflowing_add(rhs)
@@ -139,6 +152,10 @@ impl OverflowOps for u64 {
         Err(String::from(
             "Attempting to convert from smaller byte slice",
         ))
+    }
+
+    fn as_u64(self: Self) -> u64 {
+        self as u64
     }
 }
 
@@ -171,8 +188,8 @@ impl Program {
         T::from(*self.get_register(r)).unwrap()
     }
 
-    fn write_register<T: PrimInt>(self: &mut Self, r: Reg, value: T) {
-        *self.get_register(r) = value.to_u64().unwrap();
+    fn write_register<T: PrimInt + IntegerOps>(self: &mut Self, r: Reg, value: T) {
+        *self.get_register(r) = value.as_u64();
     }
 
     fn increase_pc(self: &mut Self, current_instruction: Instruction) {
@@ -185,7 +202,7 @@ impl Program {
         *pc = addr;
     }
 
-    fn add<T: PrimInt + OverflowOps>(self: &mut Self, r1: Reg, r2: Reg) {
+    fn add<T: PrimInt + IntegerOps>(self: &mut Self, r1: Reg, r2: Reg) {
         let r1_v = self.read_register::<T>(r1);
         let r2_v = self.read_register::<T>(r2);
         let (r, ov) = r1_v.overflowing_add(r2_v);
@@ -195,7 +212,7 @@ impl Program {
         }
     }
 
-    fn sub<T: PrimInt + OverflowOps>(self: &mut Self, r1: Reg, r2: Reg) {
+    fn sub<T: PrimInt + IntegerOps>(self: &mut Self, r1: Reg, r2: Reg) {
         let r1_v = self.read_register::<T>(r1);
         let r2_v = self.read_register::<T>(r2);
         let (r, ov) = r1_v.overflowing_sub(r2_v);
@@ -205,7 +222,7 @@ impl Program {
         }
     }
 
-    fn mul<T: PrimInt + OverflowOps>(self: &mut Self, r1: Reg, r2: Reg) {
+    fn mul<T: PrimInt + IntegerOps>(self: &mut Self, r1: Reg, r2: Reg) {
         let r1_v = self.read_register::<T>(r1);
         let r2_v = self.read_register::<T>(r2);
         let (r, ov) = r1_v.overflowing_mul(r2_v);
@@ -215,7 +232,7 @@ impl Program {
         }
     }
 
-    fn div<T: PrimInt + OverflowOps>(self: &mut Self, r1: Reg, r2: Reg) -> Result<(), String> {
+    fn div<T: PrimInt + IntegerOps>(self: &mut Self, r1: Reg, r2: Reg) -> Result<(), String> {
         let r1_v = self.read_register::<T>(r1);
         let r2_v = self.read_register::<T>(r2);
         if r2_v.is_zero() {
@@ -225,7 +242,7 @@ impl Program {
         Ok(())
     }
 
-    fn modulo<T: PrimInt + OverflowOps>(self: &mut Self, r1: Reg, r2: Reg) -> Result<(), String> {
+    fn modulo<T: PrimInt + IntegerOps>(self: &mut Self, r1: Reg, r2: Reg) -> Result<(), String> {
         let r1_v = self.read_register::<T>(r1);
         let r2_v = self.read_register::<T>(r2);
         if r2_v.is_zero() {
@@ -235,7 +252,7 @@ impl Program {
         Ok(())
     }
 
-    fn pow<T: PrimInt + OverflowOps>(self: &mut Self, r1: Reg, r2: Reg) {
+    fn pow<T: PrimInt + IntegerOps>(self: &mut Self, r1: Reg, r2: Reg) {
         let r1_v = self.read_register::<T>(r1);
         let r2_v = self.read_register::<T>(r2);
         let mul = r1_v;
@@ -254,7 +271,7 @@ impl Program {
         }
     }
 
-    fn write_mem<T: PrimInt + OverflowOps>(
+    fn write_mem<T: PrimInt + IntegerOps>(
         self: &mut Self,
         val: T,
         addr: u64,
@@ -271,7 +288,7 @@ impl Program {
         Ok(())
     }
 
-    fn read_mem<T: PrimInt + OverflowOps>(self: &mut Self, addr: u64) -> Result<T, String> {
+    fn read_mem<T: PrimInt + IntegerOps>(self: &mut Self, addr: u64) -> Result<T, String> {
         let result = T::from_be_slice(&self.memory[addr as usize..])?;
         Ok(result)
     }
@@ -287,7 +304,7 @@ impl Program {
             if pc as usize >= self.instructions_size || pc as usize == usize::MAX {
                 break;
             }
-            let instruction = Instruction::deserialize(&self.memory[pc as usize..])?;
+            let (instruction, size) = Instruction::deserialize(&self.memory[pc as usize..])?;
             match instruction {
                 Instruction::Add(r1, r2) => {
                     self.add::<u64>(r1, r2);
@@ -338,6 +355,10 @@ impl Program {
                     let addr = self.read_register::<u64>(r_where);
                     let mem = self.read_mem::<u64>(addr)?;
                     self.write_register(r_which, mem);
+                    self.increase_pc(instruction);
+                }
+                Instruction::MovImm(reg, imm) => {
+                    self.write_register(reg, imm);
                     self.increase_pc(instruction);
                 }
                 Instruction::Cmp(r1, r2) => {
