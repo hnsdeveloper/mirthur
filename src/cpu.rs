@@ -1,3 +1,4 @@
+use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -10,8 +11,8 @@ pub enum Instruction {
     Mod(Reg, Reg),
     Pow(Reg, Reg),
     Mov(Reg, Reg),
-    StoreReg(Reg, Reg),
-    LoadReg(Reg, Reg),
+    StoreReg(Reg, Reg, u64),
+    LoadReg(Reg, Reg, u64),
     Cmp(Reg, Reg),
     StoreMem(Reg, u64),
     LoadMem(Reg, u64),
@@ -27,6 +28,7 @@ pub enum Instruction {
     PopReg(Reg),
     Call(u64),
     Return,
+    Halt,
 }
 
 const CATEGORY_MAX: u8 = 0xF0;
@@ -34,9 +36,9 @@ const SIZE_MAX: u8 = 0x0F;
 
 // Instruction size
 const SIZE_64: u8 = 0x0;
-const SIZE_32: u8 = 0x1;
-const SIZE_16: u8 = 0x2;
-const SIZE_8: u8 = 0x3;
+//const SIZE_32: u8 = 0x1;
+//const SIZE_16: u8 = 0x2;
+//const SIZE_8: u8 = 0x3;
 
 // Instruction category
 const REG_REG_INS: u8 = 0x10;
@@ -44,9 +46,9 @@ const REG_MEM_INS: u8 = 0x20;
 const CTL_FLW_INS: u8 = 0x30;
 const STK_INS: u8 = 0x40;
 const IMM_INS: u8 = 0x50;
+const REG_LAD_STR_INS: u8 = 0x60;
 
 // Instructions
-
 const INS_ADD: u8 = 0x1;
 const INS_SUB: u8 = 0x2;
 const INS_MUL: u8 = 0x3;
@@ -68,6 +70,7 @@ const INS_POP: u8 = 0x12;
 const INS_POP_REG: u8 = 0x13;
 const INS_CALL: u8 = 0x14;
 const INS_RET: u8 = 0x15;
+const INS_HLT: u8 = 0x16;
 
 impl Instruction {
     pub fn deserialize(data: &[u8]) -> Result<(Instruction, usize), String> {
@@ -113,8 +116,6 @@ impl Instruction {
                     INS_MOD => Instruction::Mod(reg1, reg2),
                     INS_POW => Instruction::Pow(reg1, reg2),
                     INS_MOV => Instruction::Mov(reg1, reg2),
-                    INS_STR => Instruction::StoreReg(reg1, reg2),
-                    INS_LAD => Instruction::LoadReg(reg1, reg2),
                     INS_CMP => Instruction::Cmp(reg1, reg2),
                     _ => return Err(format!("Invalid REG_REG opcode: {}", opcode)),
                 }
@@ -150,6 +151,7 @@ impl Instruction {
                     }
                 }
                 INS_RET => Instruction::Return,
+                INS_HLT => Instruction::Halt,
                 _ => return Err(format!("Invalid CTL_FLW opcode: {}", opcode)),
             },
             STK_INS => match opcode {
@@ -167,6 +169,21 @@ impl Instruction {
                     Instruction::PopReg(reg)
                 }
                 _ => return Err(format!("Invalid STK_INS opcode: {}", opcode)),
+            },
+            REG_LAD_STR_INS => match opcode {
+                INS_LAD => {
+                    let reg1 = take_reg(data, &mut offset)?;
+                    let reg2 = take_reg(data, &mut offset)?;
+                    let val = take_u64(data, &mut offset)?;
+                    Instruction::LoadReg(reg1, reg2, val)
+                }
+                INS_STR => {
+                    let reg1 = take_reg(data, &mut offset)?;
+                    let reg2 = take_reg(data, &mut offset)?;
+                    let val = take_u64(data, &mut offset)?;
+                    Instruction::StoreReg(reg1, reg2, val)
+                }
+                _ => return Err(format!("Invalid REG_LAD_STR_INS opcode : {}", opcode)),
             },
             _ => return Err(format!("Unknown instruction category: {:#x}", category)),
         };
@@ -198,11 +215,23 @@ impl Instruction {
             Instruction::Mov(reg, reg1) => {
                 data.extend_from_slice(&[REG_REG_INS | SIZE_64, INS_MOV, reg as u8, reg1 as u8]);
             }
-            Instruction::StoreReg(reg, reg1) => {
-                data.extend_from_slice(&[REG_REG_INS | SIZE_64, INS_STR, reg as u8, reg1 as u8]);
+            Instruction::StoreReg(reg, reg1, offset) => {
+                data.extend_from_slice(&[
+                    REG_LAD_STR_INS | SIZE_64,
+                    INS_STR,
+                    reg as u8,
+                    reg1 as u8,
+                ]);
+                data.extend_from_slice(&offset.to_le_bytes());
             }
-            Instruction::LoadReg(reg, reg1) => {
-                data.extend_from_slice(&[REG_REG_INS | SIZE_64, INS_LAD, reg as u8, reg1 as u8]);
+            Instruction::LoadReg(reg, reg1, offset) => {
+                data.extend_from_slice(&[
+                    REG_LAD_STR_INS | SIZE_64,
+                    INS_LAD,
+                    reg as u8,
+                    reg1 as u8,
+                ]);
+                data.extend_from_slice(&offset.to_le_bytes());
             }
             Instruction::Cmp(reg, reg1) => {
                 data.extend_from_slice(&[REG_REG_INS | SIZE_64, INS_CMP, reg as u8, reg1 as u8]);
@@ -239,9 +268,9 @@ impl Instruction {
                 data.extend_from_slice(&[CTL_FLW_INS, INS_BRLT]);
                 data.extend_from_slice(&addr.to_le_bytes());
             }
-            Instruction::PushVal(addr) => {
+            Instruction::PushVal(val) => {
                 data.extend_from_slice(&[STK_INS | SIZE_64, INS_PUSH_VAL]);
-                data.extend_from_slice(&addr.to_le_bytes());
+                data.extend_from_slice(&val.to_le_bytes());
             }
             Instruction::PushReg(reg) => {
                 data.extend_from_slice(&[STK_INS | SIZE_64, INS_PUSH_REG, reg as u8]);
@@ -259,6 +288,9 @@ impl Instruction {
             Instruction::Return => {
                 data.extend_from_slice(&[CTL_FLW_INS, INS_RET]);
             }
+            Instruction::Halt => {
+                data.extend_from_slice(&[CTL_FLW_INS, INS_HLT]);
+            }
         }
         data
     }
@@ -272,12 +304,37 @@ pub enum Reg {
     FP = 2,
     SP = 3,
     RA = 4,
+    // Argument 0
     A0 = 5,
+    // Argument 1
     A1 = 6,
+    // Argument 2
     A2 = 7,
     T0 = 8,
     T1 = 9,
     T2 = 10,
+}
+
+impl Reg {
+    pub fn argument_registers() -> Vec<Reg> {
+        vec![Reg::A0, Reg::A1, Reg::A2]
+    }
+
+    pub fn general_purpose_registers() -> Vec<Reg> {
+        Self::iter()
+            .filter_map(|reg| {
+                if (reg != Reg::FL)
+                    && (reg != Reg::FP)
+                    && (reg != Reg::PC)
+                    && (reg != Reg::RA)
+                    && (reg != Reg::SP)
+                {
+                    return Some(reg);
+                }
+                None
+            })
+            .collect()
+    }
 }
 
 impl std::convert::TryFrom<u8> for Reg {

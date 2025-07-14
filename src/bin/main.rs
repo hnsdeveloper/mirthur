@@ -1,9 +1,8 @@
 use bevy_lua::prelude::*;
-
-use std::env;
+use std::error::Error;
 use std::fs;
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string("test.mt").expect("Could not read file");
 
     let raw: Vec<char> = contents.chars().collect();
@@ -13,18 +12,9 @@ fn main() {
         Err(msg) => panic!("{}", msg),
     };
 
-    for token in tokens.iter() {
-        match token.kind() {
-            TokenKind::Identifier => println!("{} : Identifier", String::from_iter(token.value())),
-            TokenKind::Syntax => println!("{} : Syntax", String::from_iter(token.value())),
-            TokenKind::Keyword => println!("{} : Keyword", String::from_iter(token.value())),
-            TokenKind::Number => println!("{} : Number", String::from_iter(token.value())),
-            TokenKind::Operator => println!("{} : Operator", String::from_iter(token.value())),
-        }
-    }
+    let ast = Parser::parse(&raw, &tokens).unwrap();
+    let mut program = Program::build(Compiler::build(ast).compile().unwrap(), 1024 * 1024);
+    let _ = program.run();
 
-    let ast = match Parser::parse(&raw, &tokens) {
-        Ok(ast) => println!("{}", ast.len()),
-        Err(_) => println!("Error while parsing."),
-    };
+    Ok(())
 }
