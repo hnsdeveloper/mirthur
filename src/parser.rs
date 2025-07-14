@@ -93,11 +93,11 @@ fn parse_statement<'a>(
     idx: usize,
 ) -> Result<(Statement<'a>, usize), (String, String)> {
     let parse_fns = [
-        parse_let,
-        parse_return,
         parse_function_declaration,
-        parse_expression_statement,
-        parse_if,
+        //parse_let,
+        //parse_return,
+        //parse_expression_statement,
+        //parse_if,
     ];
     for parse_fn in parse_fns {
         if let Some((stmt, i)) = parse_fn(raw, tokens, idx) {
