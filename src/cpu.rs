@@ -191,7 +191,7 @@ impl Instruction {
         Ok((instr, offset))
     }
 
-    pub fn serialize(self: Self) -> Vec<u8> {
+    pub fn serialize(self) -> Vec<u8> {
         let mut data: Vec<u8> = Vec::new();
         match self {
             Instruction::Add(reg, reg1) => {
@@ -322,16 +322,12 @@ impl Reg {
 
     pub fn general_purpose_registers() -> Vec<Reg> {
         Self::iter()
-            .filter_map(|reg| {
-                if (reg != Reg::FL)
-                    && (reg != Reg::FP)
-                    && (reg != Reg::PC)
-                    && (reg != Reg::RA)
-                    && (reg != Reg::SP)
-                {
-                    return Some(reg);
-                }
-                None
+            .filter(|reg| {
+                (*reg != Reg::FL)
+                    && (*reg != Reg::FP)
+                    && (*reg != Reg::PC)
+                    && (*reg != Reg::RA)
+                    && (*reg != Reg::SP)
             })
             .collect()
     }

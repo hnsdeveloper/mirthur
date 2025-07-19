@@ -1,5 +1,3 @@
-use std::task::Context;
-
 use super::constants::*;
 use super::cpu::{Instruction, Reg};
 use super::parser::*;
@@ -35,26 +33,26 @@ mod ctx {
             }
         }
 
-        pub fn get_name(self: &Self) -> &String {
+        pub fn get_name(&self) -> &String {
             &self.name
         }
 
-        pub fn get_location(self: &Self) -> &LocalLocation {
+        pub fn get_location(&self) -> &LocalLocation {
             &self.location
         }
 
-        pub fn get_scope(self: &Self) -> usize {
+        pub fn get_scope(&self) -> usize {
             self.scope
         }
 
-        pub fn get_register(self: &Self) -> Option<Reg> {
+        pub fn get_register(&self) -> Option<Reg> {
             match self.location {
                 LocalLocation::Register(r) => Some(r),
                 LocalLocation::Stack(_) => None,
             }
         }
 
-        pub fn get_stack_offset(self: &Self) -> Option<u64> {
+        pub fn get_stack_offset(&self) -> Option<u64> {
             match self.location {
                 LocalLocation::Register(_) => None,
                 LocalLocation::Stack(v) => Some(v),
@@ -78,11 +76,11 @@ mod ctx {
             todo!()
         }
 
-        pub fn extend_instructions(self: &mut Self, data: &[u8]) {
+        pub fn extend_instructions(&mut self, data: &[u8]) {
             self.instructions.extend_from_slice(data);
         }
 
-        pub fn build_function_temporary_location(self: &mut Self, ast: &AST) -> Result<(), String> {
+        pub fn build_function_temporary_location(&mut self, ast: &AST) -> Result<(), String> {
             for stmt in ast {
                 if let Statement::FunctionDeclaration(fd) = stmt {
                     let name = String::from_iter(fd.name.value());
@@ -93,7 +91,7 @@ mod ctx {
         }
 
         pub fn get_provisory_function_symbol_location(
-            self: &mut Self,
+            &mut self,
             name: String,
         ) -> Result<u64, String> {
             if let Some(v) = self.function_provisory_symbol_table.get(&name) {
@@ -105,11 +103,12 @@ mod ctx {
             ))
         }
 
-        fn set_function_temporary_location(self: &mut Self, name: String) -> Result<u64, String> {
+        fn set_function_temporary_location(&mut self, name: String) -> Result<u64, String> {
             let n = name.clone();
-            if let Some(_) = self
+            if self
                 .function_provisory_symbol_table
                 .insert(name, self.function_temp_location_counter)
+                .is_some()
             {
                 return Err(format!("Function symbol already defined : {}", n));
             }
@@ -119,23 +118,27 @@ mod ctx {
         }
 
         fn set_function_fixed_location_curr_instruction(
-            self: &mut Self,
+            &mut self,
             temp_location: u64,
         ) -> Result<u64, String> {
             let s = self.instructions.len() as u64;
-            if let Some(_) = self.function_adjusted_symbol_table.insert(temp_location, s) {
+            if self
+                .function_adjusted_symbol_table
+                .insert(temp_location, s)
+                .is_some()
+            {
                 return Err(format!("Symbol at {} already fixated.", temp_location));
             }
             Ok(s)
         }
 
         // Makes a certain register available
-        pub fn deallocate_register(self: &mut Self, reg: Reg) {
+        pub fn deallocate_register(&mut self, reg: Reg) {
             self.free_registers.insert(reg);
         }
 
         // Takes the first register it finds free.
-        pub fn allocate_register(self: &mut Self) -> Option<Reg> {
+        pub fn allocate_register(&mut self) -> Option<Reg> {
             if let Some(r) = self.free_registers.iter().last() {
                 let r = *r;
                 self.free_registers.remove(&r);
@@ -145,14 +148,10 @@ mod ctx {
         }
 
         pub fn get_symbol_in_register(
-            self: &mut Self,
+            &mut self,
             avoid_symbols: Option<Vec<&LocalInfo>>,
         ) -> Option<LocalInfo> {
-            let avoid = if let Some(v) = avoid_symbols {
-                v
-            } else {
-                Vec::new()
-            };
+            let avoid = avoid_symbols.unwrap_or_default();
             for (scope, symbols) in self.scoped_locals.iter_mut().rev().enumerate() {
                 for (symbol_name, location) in symbols {
                     if let LocalLocation::Register(_) = *location {
@@ -170,7 +169,7 @@ mod ctx {
         }
 
         pub fn create_symbol(
-            self: &mut Self,
+            &mut self,
             name: String,
             location: LocalLocation,
         ) -> Result<LocalInfo, String> {
@@ -206,11 +205,11 @@ mod ctx {
             }
 
             symbol_table.insert(name.clone(), location);
-            return Ok(LocalInfo::new(name, location, i));
+            Ok(LocalInfo::new(name, location, i))
         }
 
         pub fn move_symbol(
-            self: &mut Self,
+            &mut self,
             symbol: &LocalInfo,
             new_location: LocalLocation,
         ) -> Result<LocalInfo, String> {
@@ -236,7 +235,7 @@ mod ctx {
                 LocalLocation::Register(r) => {
                     if !self.free_registers.contains(&r) {
                         // TODO: pretty print which register
-                        return Err(format!("Register in use. Can't assing local to register."));
+                        return Err("Register in use. Can't assing local to register.".into());
                     }
                     self.free_registers.remove(&r);
                 }
@@ -253,14 +252,14 @@ mod ctx {
                 LocalLocation::Stack(offset) => self.stack_free_slots.insert(*offset),
             };
             *location = new_location;
-            return Ok(LocalInfo::new(
+            Ok(LocalInfo::new(
                 symbol.get_name().clone(),
                 *location,
                 symbol.get_scope(),
-            ));
+            ))
         }
 
-        pub fn destroy_symbol(self: &mut Self, symbol: &LocalInfo) -> Result<(), String> {
+        pub fn destroy_symbol(&mut self, symbol: &LocalInfo) -> Result<(), String> {
             if symbol.get_scope() >= self.scoped_locals.len() {
                 return Err("Scope non existent.".into());
             }
@@ -271,16 +270,16 @@ mod ctx {
                     LocalLocation::Register(r) => self.free_registers.insert(r),
                     LocalLocation::Stack(s) => self.stack_free_slots.insert(s),
                 };
-                return Ok(());
+                Ok(())
             } else {
-                return Err(format!(
+                Err(format!(
                     "Attempting to destroy non existent symbol {}",
                     symbol.get_name()
-                ));
+                ))
             }
         }
 
-        pub fn find_local_info_by_name(self: &mut Self, name: &String) -> Option<LocalInfo> {
+        pub fn find_local_info_by_name(&mut self, name: &String) -> Option<LocalInfo> {
             for (scope, symbols) in self.scoped_locals.iter().enumerate().rev() {
                 if let Some(location) = symbols.get(name) {
                     return Some(LocalInfo::new(name.clone(), *location, scope));
@@ -290,7 +289,7 @@ mod ctx {
         }
 
         pub fn find_local_info_by_location(
-            self: &mut Self,
+            &mut self,
             location: LocalLocation,
         ) -> Option<LocalInfo> {
             for (scope, symbols) in self.scoped_locals.iter().enumerate().rev() {
@@ -307,20 +306,17 @@ mod ctx {
             None
         }
 
-        pub fn get_temporary_name(self: &mut Self) -> String {
+        pub fn get_temporary_name(&mut self) -> String {
             self.temp_name_counter += 1;
             let i = self.temp_name_counter;
             i.to_string()
         }
 
-        pub fn is_temporary(self: &mut Self, name: &String) -> bool {
-            if let Ok(_) = name.parse::<usize>() {
-                return true;
-            }
-            false
+        pub fn is_temporary(&mut self, name: &str) -> bool {
+            name.parse::<usize>().is_ok()
         }
 
-        pub fn push_stack(self: &mut Self) {
+        pub fn push_stack(&mut self) {
             for symbol_table in self.scoped_locals.iter_mut() {
                 for (_, symbol_loc) in symbol_table.iter_mut() {
                     if let LocalLocation::Stack(offset) = symbol_loc {
@@ -338,7 +334,7 @@ mod ctx {
             self.stack_free_slots.insert(0);
         }
 
-        pub fn pop_stack(self: &mut Self) -> Result<(), String> {
+        pub fn pop_stack(&mut self) -> Result<(), String> {
             for symbol_table in self.scoped_locals.iter_mut() {
                 for (_, symbol_loc) in symbol_table.iter_mut() {
                     if let LocalLocation::Stack(offset) = symbol_loc {
@@ -362,11 +358,11 @@ mod ctx {
             Ok(())
         }
 
-        pub fn get_stack_free_slot(self: &Self) -> Option<&u64> {
+        pub fn get_stack_free_slot(&self) -> Option<&u64> {
             self.stack_free_slots.iter().last()
         }
 
-        pub fn enter_function_declaration(self: &mut Self, fd: &FunctionDeclaration) {
+        pub fn enter_function_declaration(&mut self, fd: &FunctionDeclaration) {
             let name = String::from_iter(fd.name.value());
             let tmp = *self.function_provisory_symbol_table.get(&name).unwrap();
             let _ = self.set_function_fixed_location_curr_instruction(tmp);
@@ -388,23 +384,23 @@ mod ctx {
                 for item in slc {
                     self.push_stack();
                     let offset = *self.get_stack_free_slot().unwrap();
-                    self.create_symbol(item.clone(), LocalLocation::Stack(offset));
+                    let _ = self.create_symbol(item.clone(), LocalLocation::Stack(offset));
                 }
             }
         }
 
-        pub fn exit_function_declaration(self: &mut Self) {
+        pub fn exit_function_declaration(&mut self) {
             self.exit_scope();
             for reg in Reg::general_purpose_registers() {
                 self.deallocate_register(reg);
             }
         }
 
-        pub fn enter_scope(self: &mut Self) {
+        pub fn enter_scope(&mut self) {
             self.scoped_locals.push(HashMap::new());
         }
 
-        pub fn exit_scope(self: &mut Self) {
+        pub fn exit_scope(&mut self) {
             self.scoped_locals.pop();
         }
     }
@@ -421,25 +417,14 @@ impl<'a> Compiler<'a> {
 
     fn emit_op(ctx: &mut CompilerContext, operator: &[char], lhs: Reg, rhs: Reg) {
         let op = String::from_iter(operator);
-        let ins;
-        match op.as_str() {
-            OP_PLUS => {
-                ins = Instruction::Add(lhs, rhs);
-            }
-            OP_MINUS => {
-                ins = Instruction::Sub(lhs, rhs);
-            }
-            OP_MUL => {
-                ins = Instruction::Mul(lhs, rhs);
-            }
-            OP_DIV => {
-                ins = Instruction::Div(lhs, rhs);
-            }
-            OP_POW => {
-                ins = Instruction::Pow(lhs, rhs);
-            }
+        let ins = match op.as_str() {
+            OP_PLUS => Instruction::Add(lhs, rhs),
+            OP_MINUS => Instruction::Sub(lhs, rhs),
+            OP_MUL => Instruction::Mul(lhs, rhs),
+            OP_DIV => Instruction::Div(lhs, rhs),
+            OP_POW => Instruction::Pow(lhs, rhs),
             _ => unreachable!(),
-        }
+        };
         ctx.extend_instructions(&ins.serialize());
     }
 
@@ -470,7 +455,7 @@ impl<'a> Compiler<'a> {
                 if let Some(info) = ctx.find_local_info_by_name(&name) {
                     return Ok(info);
                 }
-                return Err(format!("Symbol {} not available on current scope.", name));
+                Err(format!("Symbol {} not available on current scope.", name))
             }
             Literal::Number(token) => {
                 let v = String::from_iter(token.value()).parse::<u64>().unwrap();
@@ -480,19 +465,19 @@ impl<'a> Compiler<'a> {
                     let s = ctx.get_symbol_in_register(None).unwrap();
                     if let Some(off) = ctx.get_stack_free_slot() {
                         let off = *off;
-                        ctx.move_symbol(&s, LocalLocation::Stack(off));
+                        ctx.move_symbol(&s, LocalLocation::Stack(off))?;
                         Self::emit_write_reg_reg(ctx, s.get_register().unwrap(), Reg::SP, off);
                     } else {
                         ctx.push_stack();
                         let off = *ctx.get_stack_free_slot().unwrap();
-                        ctx.move_symbol(&s, LocalLocation::Stack(off));
+                        ctx.move_symbol(&s, LocalLocation::Stack(off))?;
                         Self::emit_push_reg(ctx, s.get_register().unwrap());
                     }
                     s.get_register().unwrap()
                 };
                 let temp_name = ctx.get_temporary_name();
                 Self::emit_mov_imm(ctx, reg, v);
-                return ctx.create_symbol(temp_name, LocalLocation::Register(reg));
+                ctx.create_symbol(temp_name, LocalLocation::Register(reg))
             }
         }
     }
@@ -503,12 +488,12 @@ impl<'a> Compiler<'a> {
         leave_in_reg: Vec<&LocalInfo>,
     ) -> LocalInfo {
         // Not waste time computing the remaining, so we can simplify the code down the line.
-        if let Some(_) = symbol.get_register() {
+        if symbol.get_register().is_some() {
             return symbol.clone();
         }
         if let Some(reg) = ctx.allocate_register() {
             let p = ctx
-                .move_symbol(&symbol, LocalLocation::Register(reg))
+                .move_symbol(symbol, LocalLocation::Register(reg))
                 .unwrap();
             Self::emit_load_reg_reg(ctx, reg, Reg::SP, symbol.get_stack_offset().unwrap());
             return p;
@@ -531,11 +516,11 @@ impl<'a> Compiler<'a> {
             .move_symbol(symbol, LocalLocation::Register(reg))
             .unwrap();
         Self::emit_load_reg_reg(ctx, reg, Reg::SP, symbol.get_stack_offset().unwrap());
-        return p;
+        p
     }
 
     fn move_to_stack(symbol: &LocalInfo, ctx: &mut CompilerContext) -> LocalInfo {
-        if let Some(_) = symbol.get_stack_offset() {
+        if symbol.get_stack_offset().is_some() {
             return symbol.clone();
         }
         if let Some(offset) = ctx.get_stack_free_slot() {
@@ -544,7 +529,7 @@ impl<'a> Compiler<'a> {
                 .move_symbol(symbol, LocalLocation::Stack(offset))
                 .unwrap();
             Self::emit_write_reg_reg(ctx, symbol.get_register().unwrap(), Reg::SP, offset);
-            return info;
+            info
         } else {
             ctx.push_stack();
             let offset = *ctx.get_stack_free_slot().unwrap();
@@ -552,7 +537,7 @@ impl<'a> Compiler<'a> {
                 .move_symbol(symbol, LocalLocation::Stack(offset))
                 .unwrap();
             Self::emit_push_reg(ctx, symbol.get_register().unwrap());
-            return info;
+            info
         }
     }
 
@@ -586,24 +571,40 @@ impl<'a> Compiler<'a> {
 
         match left.get_location() {
             LocalLocation::Register(_) => {
-                let mut n_left = left.clone();
-                let r = if let Some(r) = ctx.allocate_register() {
-                    r
+                if left.get_name() != right.get_name() {
+                    let mut n_left = left.clone();
+                    let r = if let Some(r) = ctx.allocate_register() {
+                        r
+                    } else {
+                        n_left = Self::move_to_stack(left, ctx);
+                        // The register that will become free will be the same we used, and thus the value will be there already
+                        ctx.allocate_register().unwrap()
+                    };
+                    let temp_name = ctx.get_temporary_name();
+                    let l = ctx
+                        .create_symbol(temp_name, LocalLocation::Register(r))
+                        .unwrap();
+                    // If we still have left in a register, we have to copy its value to the new register
+                    if let Some(r2) = n_left.get_register() {
+                        Self::emit_mov_reg(ctx, r, r2);
+                    }
+                    let r = Self::bring_to_reg(ctx, right, vec![&l]);
+                    (l, r)
                 } else {
-                    n_left = Self::move_to_stack(left, ctx);
-                    // The register that will become free will be the same we used, and thus the value will be there already
-                    ctx.allocate_register().unwrap()
-                };
-                let temp_name = ctx.get_temporary_name();
-                let l = ctx
-                    .create_symbol(temp_name, LocalLocation::Register(r))
-                    .unwrap();
-                // If we still have left in a register, we have to copy its value to the new register
-                if let Some(r2) = n_left.get_register() {
-                    Self::emit_mov_reg(ctx, r, r2);
+                    let r = if let Some(r) = ctx.allocate_register() {
+                        r
+                    } else {
+                        let s = ctx.get_symbol_in_register(Some(vec![right])).unwrap();
+                        Self::move_to_stack(&s, ctx);
+                        ctx.allocate_register().unwrap()
+                    };
+                    let temp_name = ctx.get_temporary_name();
+                    let l = ctx
+                        .create_symbol(temp_name, LocalLocation::Register(r))
+                        .unwrap();
+                    Self::emit_mov_reg(ctx, r, right.get_register().unwrap());
+                    (l, right.clone())
                 }
-                let r = Self::bring_to_reg(ctx, right, vec![&l]);
-                return (l, r);
             }
             LocalLocation::Stack(_) => {
                 let r = if let Some(r) = ctx.allocate_register() {
@@ -619,7 +620,7 @@ impl<'a> Compiler<'a> {
                     .unwrap();
                 Self::emit_load_reg_reg(ctx, r, Reg::SP, left.get_stack_offset().unwrap());
                 let r = Self::bring_to_reg(ctx, right, vec![&l]);
-                return (l, r);
+                (l, r)
             }
         }
     }
@@ -629,8 +630,8 @@ impl<'a> Compiler<'a> {
         ctx: &mut CompilerContext,
     ) -> Result<LocalInfo, String> {
         match expression {
-            Expression::FunctionCall(function_call) => todo!(),
-            Expression::UnaryOperation(unary_operation) => todo!(),
+            Expression::FunctionCall(_function_call) => todo!(),
+            Expression::UnaryOperation(_unary_operation) => todo!(),
             Expression::BinaryOperation(binary_operation) => {
                 let left = Self::compile_expr(&binary_operation.left, ctx)?;
                 let right = Self::compile_expr(&binary_operation.right, ctx)?;
@@ -654,7 +655,6 @@ impl<'a> Compiler<'a> {
             }
             Expression::Literal(literal) => return Self::compile_literal(literal, ctx),
         };
-        todo!()
     }
 
     fn compile_fn_declaration(
@@ -672,7 +672,7 @@ impl<'a> Compiler<'a> {
                     }
                 }
                 Statement::If(_) => todo!(),
-                Statement::FunctionDeclaration(function_declaration) => todo!(),
+                Statement::FunctionDeclaration(_function_declaration) => todo!(),
                 Statement::Return(_) => todo!(),
                 Statement::Let(_) => todo!(),
             }
@@ -682,9 +682,9 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    pub fn compile(self: &mut Self) -> Result<Instructions, String> {
+    pub fn compile(&mut self) -> Result<Instructions, String> {
         let mut ctx = CompilerContext::new();
-        let _ = ctx.build_function_temporary_location(&self.ast)?;
+        ctx.build_function_temporary_location(&self.ast)?;
 
         for stmt in &self.ast {
             match stmt {

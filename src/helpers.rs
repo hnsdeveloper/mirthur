@@ -2,7 +2,7 @@ use super::constants::*;
 use super::lexer::{Token, TokenKind};
 
 pub fn is_a_substring_of_b(a: &[char], b: &[char]) -> bool {
-    if b.len() >= a.len() && a.len() != 0 {
+    if b.len() >= a.len() && !a.is_empty() {
         for i in 0..a.len() {
             if a[i] != b[i] {
                 return false;
@@ -27,9 +27,9 @@ pub fn is_whitespace(raw: &[char]) -> Option<usize> {
 }
 
 pub fn is_number(raw: &[char]) -> Option<usize> {
-    if raw.len() > 0 {
+    if !raw.is_empty() {
         let mut i = 0;
-        while raw[i].is_digit(10) {
+        while raw[i].is_ascii_digit() {
             i += 1;
         }
         if i > 0 {
@@ -40,17 +40,16 @@ pub fn is_number(raw: &[char]) -> Option<usize> {
 }
 
 pub fn is_identifier(raw: &[char]) -> Option<usize> {
-    if raw.len() > 0 {
-        if !raw[0].is_digit(10) {
-            let mut i = 0;
-            while i < raw.len() && (raw[i].is_alphanumeric() || raw[i] == '_') {
-                i += 1;
-            }
-            if i > 0 {
-                return Some(i);
-            }
+    if !raw.is_empty() && !raw[0].is_ascii_digit() {
+        let mut i = 0;
+        while i < raw.len() && (raw[i].is_alphanumeric() || raw[i] == '_') {
+            i += 1;
+        }
+        if i > 0 {
+            return Some(i);
         }
     }
+
     None
 }
 
@@ -69,7 +68,7 @@ pub fn is_keyword(raw: &[char]) -> Option<usize> {
 }
 
 pub fn is_syntax(raw: &[char]) -> Option<usize> {
-    if raw.len() > 0 {
+    if !raw.is_empty() {
         for s in SYNTAX {
             if raw[0] == s {
                 return Some(1);
@@ -80,10 +79,7 @@ pub fn is_syntax(raw: &[char]) -> Option<usize> {
 }
 
 pub fn is_right_associative(raw: &[char]) -> bool {
-    match String::from_iter(raw).as_str() {
-        OP_POW => return true,
-        _ => return false,
-    }
+    matches!(String::from_iter(raw).as_str(), OP_POW)
 }
 
 pub fn operator_precedence(raw: &[char]) -> usize {

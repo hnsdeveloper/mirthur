@@ -5,16 +5,16 @@ use num_traits::int::PrimInt;
 use strum::IntoEnumIterator;
 
 trait U8ByteArray {
-    fn length(self: &Self) -> usize;
-    fn get(self: &Self, n: usize) -> u8;
+    fn length(&self) -> usize;
+    fn get(&self, n: usize) -> u8;
 }
 
 impl<const N: usize> U8ByteArray for [u8; N] {
-    fn length(self: &Self) -> usize {
+    fn length(&self) -> usize {
         self.len()
     }
 
-    fn get(self: &Self, n: usize) -> u8 {
+    fn get(&self, n: usize) -> u8 {
         self[n]
     }
 }
@@ -24,29 +24,29 @@ where
     Self: Sized,
 {
     type Bytes: U8ByteArray;
-    fn overflowing_add(self: Self, rhs: Self) -> (Self, bool);
-    fn overflowing_sub(self: Self, rhs: Self) -> (Self, bool);
-    fn overflowing_mul(self: Self, rhs: Self) -> (Self, bool);
-    fn as_u64(self: Self) -> u64;
-    fn as_le_bytes(self: Self) -> Self::Bytes;
+    fn overflowing_add(self, rhs: Self) -> (Self, bool);
+    fn overflowing_sub(self, rhs: Self) -> (Self, bool);
+    fn overflowing_mul(self, rhs: Self) -> (Self, bool);
+    fn as_u64(self) -> u64;
+    fn as_le_bytes(self) -> Self::Bytes;
     fn from_le_slice(bytes: &[u8]) -> Result<Self, String>;
 }
 
 impl IntegerOps for u8 {
     type Bytes = [u8; size_of::<u8>()];
-    fn overflowing_add(self: Self, rhs: Self) -> (Self, bool) {
+    fn overflowing_add(self, rhs: Self) -> (Self, bool) {
         self.overflowing_add(rhs)
     }
 
-    fn overflowing_sub(self: Self, rhs: Self) -> (Self, bool) {
+    fn overflowing_sub(self, rhs: Self) -> (Self, bool) {
         self.overflowing_sub(rhs)
     }
 
-    fn overflowing_mul(self: Self, rhs: Self) -> (Self, bool) {
+    fn overflowing_mul(self, rhs: Self) -> (Self, bool) {
         self.overflowing_mul(rhs)
     }
 
-    fn as_le_bytes(self: Self) -> Self::Bytes {
+    fn as_le_bytes(self) -> Self::Bytes {
         self.to_le_bytes()
     }
 
@@ -59,26 +59,26 @@ impl IntegerOps for u8 {
         ))
     }
 
-    fn as_u64(self: Self) -> u64 {
+    fn as_u64(self) -> u64 {
         self as u64
     }
 }
 
 impl IntegerOps for u16 {
     type Bytes = [u8; size_of::<u16>()];
-    fn overflowing_add(self: Self, rhs: Self) -> (Self, bool) {
+    fn overflowing_add(self, rhs: Self) -> (Self, bool) {
         self.overflowing_add(rhs)
     }
 
-    fn overflowing_sub(self: Self, rhs: Self) -> (Self, bool) {
+    fn overflowing_sub(self, rhs: Self) -> (Self, bool) {
         self.overflowing_sub(rhs)
     }
 
-    fn overflowing_mul(self: Self, rhs: Self) -> (Self, bool) {
+    fn overflowing_mul(self, rhs: Self) -> (Self, bool) {
         self.overflowing_mul(rhs)
     }
 
-    fn as_le_bytes(self: Self) -> Self::Bytes {
+    fn as_le_bytes(self) -> Self::Bytes {
         self.to_le_bytes()
     }
 
@@ -91,26 +91,26 @@ impl IntegerOps for u16 {
         ))
     }
 
-    fn as_u64(self: Self) -> u64 {
+    fn as_u64(self) -> u64 {
         self as u64
     }
 }
 
 impl IntegerOps for u32 {
     type Bytes = [u8; size_of::<u32>()];
-    fn overflowing_add(self: Self, rhs: Self) -> (Self, bool) {
+    fn overflowing_add(self, rhs: Self) -> (Self, bool) {
         self.overflowing_add(rhs)
     }
 
-    fn overflowing_sub(self: Self, rhs: Self) -> (Self, bool) {
+    fn overflowing_sub(self, rhs: Self) -> (Self, bool) {
         self.overflowing_sub(rhs)
     }
 
-    fn overflowing_mul(self: Self, rhs: Self) -> (Self, bool) {
+    fn overflowing_mul(self, rhs: Self) -> (Self, bool) {
         self.overflowing_mul(rhs)
     }
 
-    fn as_le_bytes(self: Self) -> Self::Bytes {
+    fn as_le_bytes(self) -> Self::Bytes {
         self.to_le_bytes()
     }
 
@@ -123,26 +123,26 @@ impl IntegerOps for u32 {
         ))
     }
 
-    fn as_u64(self: Self) -> u64 {
+    fn as_u64(self) -> u64 {
         self as u64
     }
 }
 
 impl IntegerOps for u64 {
     type Bytes = [u8; size_of::<u64>()];
-    fn overflowing_add(self: Self, rhs: Self) -> (Self, bool) {
+    fn overflowing_add(self, rhs: Self) -> (Self, bool) {
         self.overflowing_add(rhs)
     }
 
-    fn overflowing_sub(self: Self, rhs: Self) -> (Self, bool) {
+    fn overflowing_sub(self, rhs: Self) -> (Self, bool) {
         self.overflowing_sub(rhs)
     }
 
-    fn overflowing_mul(self: Self, rhs: Self) -> (Self, bool) {
+    fn overflowing_mul(self, rhs: Self) -> (Self, bool) {
         self.overflowing_mul(rhs)
     }
 
-    fn as_le_bytes(self: Self) -> Self::Bytes {
+    fn as_le_bytes(self) -> Self::Bytes {
         self.to_le_bytes()
     }
 
@@ -155,8 +155,8 @@ impl IntegerOps for u64 {
         ))
     }
 
-    fn as_u64(self: Self) -> u64 {
-        self as u64
+    fn as_u64(self) -> u64 {
+        self
     }
 }
 
@@ -183,30 +183,30 @@ impl Program {
         }
     }
 
-    fn get_register(self: &mut Self, r: Reg) -> &mut u64 {
+    fn get_register(&mut self, r: Reg) -> &mut u64 {
         &mut self.registers[r as u8 as usize]
     }
 
-    fn read_register<T: PrimInt>(self: &mut Self, r: Reg) -> T {
+    fn read_register<T: PrimInt>(&mut self, r: Reg) -> T {
         T::from(*self.get_register(r)).unwrap()
     }
 
-    fn write_register<T: PrimInt + IntegerOps>(self: &mut Self, r: Reg, value: T) {
+    fn write_register<T: PrimInt + IntegerOps>(&mut self, r: Reg, value: T) {
         *self.get_register(r) = value.as_u64();
     }
 
-    fn increase_pc(self: &mut Self, amount: usize) {
+    fn increase_pc(&mut self, amount: usize) {
         let mut pc = self.read_register::<u64>(Reg::PC);
         pc += amount as u64;
         self.write_register(Reg::PC, pc);
     }
 
-    fn set_pc(self: &mut Self, addr: u64) {
+    fn set_pc(&mut self, addr: u64) {
         let pc = self.get_register(Reg::PC);
         *pc = addr;
     }
 
-    fn add<T: PrimInt + IntegerOps>(self: &mut Self, r1: Reg, r2: Reg) {
+    fn add<T: PrimInt + IntegerOps>(&mut self, r1: Reg, r2: Reg) {
         let r1_v = self.read_register::<T>(r1);
         let r2_v = self.read_register::<T>(r2);
         let (r, ov) = r1_v.overflowing_add(r2_v);
@@ -216,7 +216,7 @@ impl Program {
         }
     }
 
-    fn sub<T: PrimInt + IntegerOps>(self: &mut Self, r1: Reg, r2: Reg) {
+    fn sub<T: PrimInt + IntegerOps>(&mut self, r1: Reg, r2: Reg) {
         let r1_v = self.read_register::<T>(r1);
         let r2_v = self.read_register::<T>(r2);
         let (r, ov) = r1_v.overflowing_sub(r2_v);
@@ -226,7 +226,7 @@ impl Program {
         }
     }
 
-    fn mul<T: PrimInt + IntegerOps>(self: &mut Self, r1: Reg, r2: Reg) {
+    fn mul<T: PrimInt + IntegerOps>(&mut self, r1: Reg, r2: Reg) {
         let r1_v = self.read_register::<T>(r1);
         let r2_v = self.read_register::<T>(r2);
         let (r, ov) = r1_v.overflowing_mul(r2_v);
@@ -236,7 +236,7 @@ impl Program {
         }
     }
 
-    fn div<T: PrimInt + IntegerOps>(self: &mut Self, r1: Reg, r2: Reg) -> Result<(), String> {
+    fn div<T: PrimInt + IntegerOps>(&mut self, r1: Reg, r2: Reg) -> Result<(), String> {
         let r1_v = self.read_register::<T>(r1);
         let r2_v = self.read_register::<T>(r2);
         if r2_v.is_zero() {
@@ -246,7 +246,7 @@ impl Program {
         Ok(())
     }
 
-    fn modulo<T: PrimInt + IntegerOps>(self: &mut Self, r1: Reg, r2: Reg) -> Result<(), String> {
+    fn modulo<T: PrimInt + IntegerOps>(&mut self, r1: Reg, r2: Reg) -> Result<(), String> {
         let r1_v = self.read_register::<T>(r1);
         let r2_v = self.read_register::<T>(r2);
         if r2_v.is_zero() {
@@ -256,7 +256,7 @@ impl Program {
         Ok(())
     }
 
-    fn pow<T: PrimInt + IntegerOps>(self: &mut Self, r1: Reg, r2: Reg) {
+    fn pow<T: PrimInt + IntegerOps>(&mut self, r1: Reg, r2: Reg) {
         let r1_v = self.read_register::<T>(r1);
         let r2_v = self.read_register::<T>(r2);
         let mul = r1_v;
@@ -275,11 +275,7 @@ impl Program {
         }
     }
 
-    fn write_mem<T: PrimInt + IntegerOps>(
-        self: &mut Self,
-        val: T,
-        addr: u64,
-    ) -> Result<(), String> {
+    fn write_mem<T: PrimInt + IntegerOps>(&mut self, val: T, addr: u64) -> Result<(), String> {
         if (addr as usize) < self.instructions_area_end
             || addr as usize + size_of::<T>() > self.memory.len()
         {
@@ -292,7 +288,7 @@ impl Program {
         Ok(())
     }
 
-    fn read_mem<T: PrimInt + IntegerOps>(self: &mut Self, addr: u64) -> Result<T, String> {
+    fn read_mem<T: PrimInt + IntegerOps>(&mut self, addr: u64) -> Result<T, String> {
         if (addr as usize + size_of::<T>()) >= self.memory.len() {
             return Err("Attempting to read from invalid memory.".into());
         }
@@ -300,7 +296,7 @@ impl Program {
         Ok(result)
     }
 
-    pub fn run(self: &mut Self) -> Result<u64, String> {
+    pub fn run(&mut self) -> Result<u64, String> {
         let ie = self.instructions_area_end;
         let sp = ie + self.stack_size;
         self.write_register(Reg::SP, sp as u64);

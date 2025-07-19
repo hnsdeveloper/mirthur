@@ -1,5 +1,3 @@
-use std::usize;
-
 use super::helpers::*;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -26,7 +24,7 @@ impl Location {
         }
     }
 
-    pub fn increment(self: &Self, newline: bool) -> Self {
+    pub fn increment(&self, newline: bool) -> Self {
         if newline {
             Self {
                 index: self.index + 1,
@@ -42,7 +40,7 @@ impl Location {
         }
     }
 
-    pub fn increment_n(self: &Self, n: usize) -> Self {
+    pub fn increment_n(&self, n: usize) -> Self {
         let mut other = *self;
         for _ in 0..n {
             other = other.increment(false);
@@ -50,7 +48,7 @@ impl Location {
         other
     }
 
-    pub fn debug<S: Into<String>>(self: &Self, raw: &[char], msg: S) -> String {
+    pub fn debug<S: Into<String>>(&self, raw: &[char], msg: S) -> String {
         if *self == Self::invalid() {
             return format!("On compiler generated token {}", String::from_iter(raw));
         }
@@ -66,11 +64,11 @@ impl Location {
                 continue;
             }
             if self.line == line {
-                line_str.push_str(&c.to_string());
+                line_str.push(*c);
             }
         }
 
-        let space = " ".repeat(self.col as usize);
+        let space = " ".repeat(self.col);
         format!("{}\n\n{}\n{}^ Near here", msg.into(), line_str, space)
     }
 }
@@ -96,15 +94,15 @@ impl<'a> Token<'a> {
         Self { value, kind, loc }
     }
 
-    pub fn kind(self: &Self) -> TokenKind {
+    pub fn kind(&self) -> TokenKind {
         self.kind
     }
 
-    pub fn location(self: &Self) -> Location {
+    pub fn location(&self) -> Location {
         self.loc
     }
 
-    pub fn value(self: &Self) -> &[char] {
+    pub fn value(&self) -> &[char] {
         self.value
     }
 }
@@ -235,15 +233,15 @@ fn lex_operator(raw: &'_ [char], initial_loc: Location) -> Option<(Token<'_>, Lo
     match is_operator(&raw[initial_loc.index..]) {
         Some(size) => {
             let next_loc = initial_loc.increment_n(size);
-            return Some((
+            Some((
                 Token::new(
                     &raw[initial_loc.index..next_loc.index],
                     TokenKind::Operator,
                     initial_loc,
                 ),
                 next_loc,
-            ));
+            ))
         }
-        None => return None,
+        None => None,
     }
 }

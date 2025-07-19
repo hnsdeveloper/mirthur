@@ -117,9 +117,9 @@ fn parse_function_parameters<'a>(
         if expect_syntax(tokens, index, &SYNTAX_CP.to_string()) {
             break;
         }
-        if v.len() > 0 && !expect_syntax(tokens, index, &SYNTAX_CM.to_string()) {
+        if !v.is_empty() && !expect_syntax(tokens, index, &SYNTAX_CM.to_string()) {
             return None;
-        } else if v.len() > 0 && expect_syntax(tokens, index, &SYNTAX_CM.to_string()) {
+        } else if !v.is_empty() && expect_syntax(tokens, index, &SYNTAX_CM.to_string()) {
             index += 1;
         }
         if expect_identifier(tokens, index) {
@@ -146,21 +146,21 @@ fn parse_function_inner_body<'a>(
         parse_let,
         parse_return,
     ];
-    while i < tokens.len() {
+
+    'outer: loop {
         for parse_fn in parse_fns {
             if let Some((s, new_i)) = parse_fn(raw, tokens, i) {
                 i = new_i;
                 v.push(s);
-                continue;
+                continue 'outer;
             }
         }
         if expect_keyword(tokens, i, KW_END) {
-            break;
-        } else {
-            return None;
+            return Some((v, i));
         }
+        break;
     }
-    Some((v, i))
+    None
 }
 
 fn parse_function_declaration<'a>(
@@ -169,12 +169,12 @@ fn parse_function_declaration<'a>(
     mut index: usize,
 ) -> Option<(Statement<'a>, usize)> {
     if expect_keyword(tokens, index, KW_FUNCTION) {
-        index = index + 1;
+        index += 1;
         if expect_identifier(tokens, index) {
             let name = tokens[index].clone();
-            index = index + 1;
+            index += 1;
             if expect_syntax(tokens, index, &SYNTAX_OP.to_string()) {
-                index = index + 1;
+                index += 1;
                 let (parameters, i) = parse_function_parameters(raw, tokens, index)?;
                 index = i;
                 let (body, i) = parse_function_inner_body(raw, tokens, index)?;
@@ -210,24 +210,24 @@ fn parse_inner_if<'a>(
         parse_let,
         parse_return,
     ];
-    while i < tokens.len() {
+
+    'outer: loop {
         for parse_fn in parse_fns {
             if let Some((s, new_i)) = parse_fn(raw, tokens, i) {
                 i = new_i;
                 v.push(s);
-                continue;
+                continue 'outer;
             }
         }
         if expect_keyword(tokens, i, KW_ELIF)
             || expect_keyword(tokens, i, KW_ELSE)
             || expect_keyword(tokens, i, KW_END)
         {
-            break;
-        } else {
-            return None;
+            return Some((v, i));
         }
+        break;
     }
-    Some((v, i))
+    None
 }
 
 fn parse_if<'a>(
@@ -235,49 +235,47 @@ fn parse_if<'a>(
     tokens: &[Token<'a>],
     mut index: usize,
 ) -> Option<(Statement<'a>, usize)> {
-    if index < tokens.len() {
-        if expect_keyword(tokens, index, KW_IF) {
-            let mut tests: Vec<Expression<'a>> = Vec::new();
-            let mut bodies: Vec<Vec<Statement<'a>>> = Vec::new();
-            index += 1;
-            let (exp, i) = parse_expression(raw, tokens, index, 0)?;
-            index = i;
-            if !expect_keyword(tokens, index, KW_THEN) {
-                return None;
+    if index < tokens.len() && expect_keyword(tokens, index, KW_IF) {
+        let mut tests: Vec<Expression<'a>> = Vec::new();
+        let mut bodies: Vec<Vec<Statement<'a>>> = Vec::new();
+        index += 1;
+        let (exp, i) = parse_expression(raw, tokens, index, 0)?;
+        index = i;
+        if !expect_keyword(tokens, index, KW_THEN) {
+            return None;
+        }
+        index += 1;
+        let (stmt, i) = parse_inner_if(raw, tokens, index)?;
+        index = i;
+        tests.push(exp);
+        bodies.push(stmt);
+        while index < tokens.len() {
+            if expect_keyword(tokens, index, KW_ELIF) {
+                index += 1;
+                let (elif_test, i) = parse_expression(raw, tokens, index, 0)?;
+                index = i;
+                if !expect_keyword(tokens, index, KW_THEN) {
+                    return None;
+                }
+                index += 1;
+                let (elif_stmt, i) = parse_inner_if(raw, tokens, index)?;
+                index = i;
+                tests.push(elif_test);
+                bodies.push(elif_stmt);
+                continue;
             }
-            index += 1;
-            let (stmt, i) = parse_inner_if(raw, tokens, index)?;
-            index = i;
-            tests.push(exp);
-            bodies.push(stmt);
-            while index < tokens.len() {
-                if expect_keyword(tokens, index, KW_ELIF) {
-                    index += 1;
-                    let (elif_test, i) = parse_expression(raw, tokens, index, 0)?;
-                    index = i;
-                    if !expect_keyword(tokens, index, KW_THEN) {
-                        return None;
-                    }
-                    index += 1;
-                    let (elif_stmt, i) = parse_inner_if(raw, tokens, index)?;
-                    index = i;
-                    tests.push(elif_test);
-                    bodies.push(elif_stmt);
-                    continue;
-                }
-                if expect_keyword(tokens, index, KW_ELSE) {
-                    index += 1;
-                    // If there is an else, we will have one extra statement without test. In the virtual machine, for it
-                    // to work properly, we add a test that always returns > 0.
-                    let (else_stmt, i) = parse_inner_if(raw, tokens, index)?;
-                    index = i;
-                    bodies.push(else_stmt);
-                }
-                if expect_keyword(tokens, index, KW_END) {
-                    return Some((Statement::If(If { tests, bodies }), index + 1));
-                }
-                break;
+            if expect_keyword(tokens, index, KW_ELSE) {
+                index += 1;
+                // If there is an else, we will have one extra statement without test. In the virtual machine, for it
+                // to work properly, we add a test that always returns > 0.
+                let (else_stmt, i) = parse_inner_if(raw, tokens, index)?;
+                index = i;
+                bodies.push(else_stmt);
             }
+            if expect_keyword(tokens, index, KW_END) {
+                return Some((Statement::If(If { tests, bodies }), index + 1));
+            }
+            break;
         }
     }
     None
@@ -288,29 +286,26 @@ fn parse_return<'a>(
     tokens: &[Token<'a>],
     index: usize,
 ) -> Option<(Statement<'a>, usize)> {
-    if index < tokens.len() {
-        if expect_keyword(tokens, index, KW_RETURN) {
-            // Check if we have an empty return
-            let i = index + 1;
+    if index < tokens.len() && expect_keyword(tokens, index, KW_RETURN) {
+        // Check if we have an empty return
+        let i = index + 1;
+        if expect_syntax(tokens, i, &SYNTAX_SC.to_string()) {
+            return Some((Statement::Return(Return { exp: None }), i + 1));
+        }
+        if let Some((exp, i)) = parse_expression(raw, tokens, i, 0) {
             if expect_syntax(tokens, i, &SYNTAX_SC.to_string()) {
-                return Some((Statement::Return(Return { exp: None }), i + 1));
-            }
-            if let Some((exp, i)) = parse_expression(raw, tokens, i, 0) {
-                if expect_syntax(tokens, i, &SYNTAX_SC.to_string()) {
-                    return Some((Statement::Return(Return { exp: Some(exp) }), i + 1));
-                }
+                return Some((Statement::Return(Return { exp: Some(exp) }), i + 1));
             }
         }
     }
     None
 }
-
 fn parse_let<'a>(
     raw: &'a [char],
     tokens: &[Token<'a>],
     index: usize,
 ) -> Option<(Statement<'a>, usize)> {
-    if expect_keyword(tokens, index, &KW_LET) {
+    if expect_keyword(tokens, index, KW_LET) {
         let id_idx = index + 1;
         if expect_identifier(tokens, id_idx) {
             let eq_idx = id_idx + 1;
@@ -508,9 +503,10 @@ fn try_function_call<'a>(
                 if expect_syntax(tokens, i, &SYNTAX_CP.to_string()) {
                     break;
                 }
-                if expressions.len() > 0 && !expect_syntax(tokens, i, &SYNTAX_CM.to_string()) {
+                if !expressions.is_empty() && !expect_syntax(tokens, i, &SYNTAX_CM.to_string()) {
                     return None;
-                } else if expressions.len() > 0 && expect_syntax(tokens, i, &SYNTAX_CM.to_string())
+                } else if !expressions.is_empty()
+                    && expect_syntax(tokens, i, &SYNTAX_CM.to_string())
                 {
                     i += 1;
                 }
