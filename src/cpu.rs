@@ -335,6 +335,10 @@ impl Reg {
             })
             .collect()
     }
+
+    pub fn temporary_registers() -> Vec<Reg> {
+        vec![Reg::T0, Reg::T1, Reg::T2]
+    }
 }
 
 impl std::convert::TryFrom<u8> for Reg {
